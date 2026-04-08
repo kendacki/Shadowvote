@@ -290,12 +290,23 @@ const Sub = styled('p', {
   margin: '0 0 $7 0',
 });
 
+const HeroRightStack = styled('div', {
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '$6',
+  minWidth: 0,
+  width: '100%',
+  '@lg': { gap: '$7' },
+});
+
 const HeroVisual = styled(motion.div, {
   position: 'relative',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
   minHeight: '280px',
+  width: '100%',
   '@lg': { minHeight: '380px' },
 });
 
@@ -359,7 +370,8 @@ const SectionTitle = styled('h2', {
   fontSize: '$xl',
   textAlign: 'center',
   color: '#FAFAFA',
-  margin: '0 0 $8 0',
+  margin: 0,
+  width: '100%',
 });
 
 const CardGrid = styled('div', {
@@ -826,48 +838,21 @@ export default function HomePage() {
                   </motion.div>
                 </div>
 
-                <HeroVisual>
-                  <HeroEmblem />
-                  <FloatCardAnchor>
-                    <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
-                      ZK proof ready → submit via Lace
-                    </FloatCard>
-                  </FloatCardAnchor>
-                </HeroVisual>
+                <HeroRightStack>
+                  <HeroVisual>
+                    <HeroEmblem />
+                    <FloatCardAnchor>
+                      <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
+                        ZK proof ready → submit via Lace
+                      </FloatCard>
+                    </FloatCardAnchor>
+                  </HeroVisual>
+                  <SectionTitle id="roadmap">What to do next</SectionTitle>
+                </HeroRightStack>
               </HeroGrid>
 
-              <Section
-                id="roadmap"
-                css={{
-                  '@lg': {
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    columnGap: '$9',
-                    rowGap: '$8',
-                    alignItems: 'start',
-                  },
-                }}
-              >
-                <SectionTitle
-                  css={{
-                    '@lg': {
-                      gridColumn: '2',
-                      gridRow: '1',
-                      textAlign: 'left',
-                      justifySelf: 'start',
-                    },
-                  }}
-                >
-                  What to do next
-                </SectionTitle>
-                <CardGrid
-                  css={{
-                    '@lg': {
-                      gridColumn: '1 / -1',
-                      gridRow: '2',
-                    },
-                  }}
-                >
+              <Section aria-labelledby="roadmap">
+                <CardGrid css={{ marginTop: '$6', '@md': { marginTop: '$8' } }}>
                   {[
                     {
                       Icon: IconCreateProposal,
