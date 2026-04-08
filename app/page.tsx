@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/Button';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Body, Caption, FeatureBody, FeatureTitle, H2 } from '@/components/Typography';
@@ -509,50 +509,6 @@ const Copyright = styled('p', {
   margin: '$8 0 0',
 });
 
-const BoardWrap = styled('div', {
-  position: 'relative',
-});
-
-const BoardTrigger = styled('button', {
-  all: 'unset',
-  fontFamily: '$poppins',
-  fontSize: '$sm',
-  fontWeight: '$regular',
-  color: '#A1A1AA',
-  cursor: 'pointer',
-  display: 'inline-flex',
-  alignItems: 'center',
-  gap: '6px',
-  transition: 'color 0.2s',
-  '&:hover': { color: '#F4F4F5' },
-});
-
-const Dropdown = styled(motion.div, {
-  position: 'absolute',
-  top: '100%',
-  left: '50%',
-  transform: 'translateX(-50%)',
-  marginTop: '$2',
-  minWidth: '160px',
-  padding: '$2',
-  borderRadius: '$md',
-  backgroundColor: '#14141a',
-  border: '1px solid rgba(255,255,255,0.1)',
-  boxShadow: '0 16px 40px rgba(0,0,0,0.5)',
-  zIndex: 50,
-});
-
-const DropdownLink = styled(Link, {
-  display: 'block',
-  padding: '$2 $3',
-  borderRadius: '$sm',
-  fontFamily: '$poppins',
-  fontSize: '$sm',
-  color: '#D4D4D8',
-  textDecoration: 'none',
-  '&:hover': { backgroundColor: 'rgba(248,113,113,0.12)', color: '#FAFAFA' },
-});
-
 function LogoWithFallback() {
   const [src, setSrc] = useState(LOGO_SRC);
   return (
@@ -647,23 +603,9 @@ export default function HomePage() {
   const router = useRouter();
   const wallet = useMidnightWallet();
   const blocking = wallet.isLoading || wallet.isConnecting;
-  const [boardOpen, setBoardOpen] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
-  const boardRef = useRef<HTMLDivElement>(null);
 
-  const closeBoard = useCallback(() => setBoardOpen(false), []);
   const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
-
-  useEffect(() => {
-    if (!boardOpen) return;
-    const onDoc = (e: MouseEvent) => {
-      if (boardRef.current && !boardRef.current.contains(e.target as Node)) {
-        setBoardOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', onDoc);
-    return () => document.removeEventListener('mousedown', onDoc);
-  }, [boardOpen]);
 
   useEffect(() => {
     if (!mobileNavOpen) return;
@@ -752,12 +694,6 @@ export default function HomePage() {
                     </svg>
                   </MobileNavCloseBtn>
                 </MobileNavCloseRow>
-                <MobileNavLink href="#roadmap" onClick={closeMobileNav}>
-                  Roadmap
-                </MobileNavLink>
-                <MobileNavLink href="/dashboard" onClick={closeMobileNav}>
-                  Dashboard
-                </MobileNavLink>
                 <MobileNavLink href="https://docs.midnight.network" target="_blank" rel="noreferrer" onClick={closeMobileNav}>
                   Updates
                 </MobileNavLink>
@@ -796,32 +732,6 @@ export default function HomePage() {
                 </Brand>
 
                 <NavCenter>
-                  <NavLink href="#roadmap">Roadmap</NavLink>
-                  <BoardWrap ref={boardRef}>
-                    <BoardTrigger type="button" onClick={() => setBoardOpen((o) => !o)} aria-expanded={boardOpen}>
-                      Board
-                      <span aria-hidden style={{ fontSize: '10px' }}>
-                        ▾
-                      </span>
-                    </BoardTrigger>
-                    <AnimatePresence>
-                      {boardOpen ? (
-                        <Dropdown
-                          initial={{ opacity: 0, y: -6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -6 }}
-                          transition={{ duration: 0.2 }}
-                        >
-                          <DropdownLink href="/dashboard" onClick={closeBoard}>
-                            Dashboard
-                          </DropdownLink>
-                          <DropdownLink href="/dashboard" onClick={closeBoard}>
-                            Proposals
-                          </DropdownLink>
-                        </Dropdown>
-                      ) : null}
-                    </AnimatePresence>
-                  </BoardWrap>
                   <NavLink href="https://docs.midnight.network" target="_blank" rel="noreferrer">
                     Updates
                   </NavLink>
