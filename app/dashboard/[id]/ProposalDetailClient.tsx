@@ -12,6 +12,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useCallback, useMemo } from 'react';
+import { truncateAddress } from '@/utils/formatters';
 
 const Page = styled(motion.div, {
   minHeight: '100vh',
@@ -98,11 +99,6 @@ const VoteCastPill = styled(motion.div, {
   boxShadow: '$buttonPrimary',
   '@sm': { width: 'auto', minWidth: '200px' },
 });
-
-function formatAddress(a: string): string {
-  if (a.length <= 16) return a;
-  return `${a.slice(0, 10)}…${a.slice(-8)}`;
-}
 
 function applyVoteStageToast(
   toast: ReturnType<typeof useToast>,
@@ -239,8 +235,20 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
         </div>
         <WalletCol>
           <Caption>Wallet</Caption>
-          <Body css={{ fontSize: '$sm', color: '$black', fontWeight: '$semibold' }}>
-            {formatAddress(wallet.unshieldedAddress)}
+          <Body
+            title={wallet.unshieldedAddress}
+            css={{
+              fontSize: '$sm',
+              color: '$black',
+              fontWeight: '$semibold',
+              fontFamily: 'ui-monospace, "Cascadia Mono", monospace',
+              maxWidth: 'min(260px, 72vw)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {truncateAddress(wallet.unshieldedAddress)}
           </Body>
         </WalletCol>
       </Header>

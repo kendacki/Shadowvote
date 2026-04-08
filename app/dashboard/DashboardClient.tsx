@@ -11,7 +11,8 @@ import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
+import { formatTNight, truncateAddress } from '@/utils/formatters';
 
 const Page = styled(motion.div, {
   minHeight: '100vh',
@@ -130,17 +131,6 @@ const SyncBanner = styled(motion.div, {
   border: '1px solid $gray200',
   backgroundColor: '$gray100',
 });
-
-function formatAddress(a: string): string {
-  if (a.length <= 16) return a;
-  return `${a.slice(0, 10)}…${a.slice(-8)}`;
-}
-
-function formatTNight(n: bigint): string {
-  const whole = n / 1_000_000n;
-  const frac = (n % 1_000_000n).toString().padStart(6, '0').slice(0, 2);
-  return `${whole.toString()}.${frac} tNight`;
-}
 
 function applyVoteStageToast(
   toast: ReturnType<typeof useToast>,
@@ -291,19 +281,30 @@ export default function DashboardClient() {
         </div>
         <WalletPanel>
           <Caption>Wallet</Caption>
-          <Body css={{ fontSize: '$sm', color: '$black', fontWeight: '$semibold' }}>
-            {formatAddress(wallet.unshieldedAddress)}
+          <Body
+            title={wallet.unshieldedAddress}
+            css={{
+              fontSize: '$sm',
+              color: '$black',
+              fontWeight: '$semibold',
+              fontFamily: 'ui-monospace, "Cascadia Mono", monospace',
+              maxWidth: 'min(260px, 72vw)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {truncateAddress(wallet.unshieldedAddress)}
           </Body>
-          <Caption>
-            {wallet.tNightBalance !== null ? formatTNight(wallet.tNightBalance) : '—'}
-          </Caption>
+          <Caption>{formatTNight(wallet.tNightBalance)}</Caption>
         </WalletPanel>
       </Header>
 
       <Main>
         <Toolbar>
           <div>
-            <Body css={{ fontSize: '$sm', color: '$gray500' }}>
+            <H2 css={{ margin: 0, marginBottom: '$2', fontSize: '$xl', color: '$black' }}>Active proposals</H2>
+            <Body css={{ fontSize: '$sm', color: '$gray500', margin: 0 }}>
               {identityReady ? 'Local voter identity is ready.' : 'Loading secure voter identity…'}
             </Body>
           </div>
@@ -313,7 +314,7 @@ export default function DashboardClient() {
             disabled={!identityReady || shadow.isVoting}
             onClick={() => setCreateOpen(true)}
           >
-            New proposal
+            Create proposal
           </Button>
         </Toolbar>
 
@@ -361,7 +362,7 @@ export default function DashboardClient() {
               your contract address in the environment.
             </Body>
             <Button type="button" variant="primary" disabled={!identityReady || shadow.isVoting} onClick={() => setCreateOpen(true)}>
-              New proposal
+              Create proposal
             </Button>
           </EmptyState>
         ) : (

@@ -9,6 +9,7 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { Body, Caption, FeatureBody, FeatureTitle, H2 } from '@/components/Typography';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
 import { gradientPrimary, styled } from '@/stitches.config';
+import { formatTNight, truncateAddress } from '@/utils/formatters';
 
 /** Prefer a raster PNG with transparency at `public/shadowvote-logo.png`; falls back to vector emblem. */
 const LOGO_SRC = '/shadowvote-logo.png';
@@ -75,6 +76,16 @@ const NavLink = styled('a', {
   cursor: 'pointer',
   transition: 'color 0.2s',
   '&:hover': { color: '#F4F4F5' },
+});
+
+const HeaderWalletMeta = styled('div', {
+  display: 'none',
+  flexDirection: 'column',
+  alignItems: 'flex-end',
+  gap: '2px',
+  minWidth: 0,
+  maxWidth: 'min(200px, 28vw)',
+  '@sm': { display: 'flex' },
 });
 
 const HeaderRight = styled('div', {
@@ -770,17 +781,26 @@ export default function HomePage() {
                   </MobileMenuButton>
                   <HeaderRight>
                     {wallet.isConnected && wallet.unshieldedAddress ? (
-                      <Caption
-                        css={{
-                          color: '#A1A1AA',
-                          maxWidth: '140px',
-                          textAlign: 'right',
-                          display: 'none',
-                          '@sm': { display: 'block' },
-                        }}
-                      >
-                        {wallet.unshieldedAddress.slice(0, 10)}…{wallet.unshieldedAddress.slice(-6)}
-                      </Caption>
+                      <HeaderWalletMeta>
+                        <Caption
+                          title={wallet.unshieldedAddress}
+                          css={{
+                            color: '#A1A1AA',
+                            textAlign: 'right',
+                            fontFamily: 'ui-monospace, "Cascadia Mono", monospace',
+                            fontSize: '11px',
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            width: '100%',
+                          }}
+                        >
+                          {truncateAddress(wallet.unshieldedAddress)}
+                        </Caption>
+                        <Caption css={{ color: '#71717A', textAlign: 'right', fontSize: '10px' }}>
+                          {formatTNight(wallet.tNightBalance)}
+                        </Caption>
+                      </HeaderWalletMeta>
                     ) : null}
                     <Button
                       type="button"
