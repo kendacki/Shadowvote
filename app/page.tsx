@@ -256,7 +256,8 @@ const IconCircle = styled('div', {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  fontSize: '22px',
+  color: '#FAFAFA',
+  '& svg': { display: 'block' },
 });
 
 const CardLink = styled(Link, {
@@ -366,27 +367,6 @@ const FooterLink = styled('a', {
   '&:hover': { color: '#F4F4F5' },
 });
 
-const SocialRow = styled('div', {
-  display: 'flex',
-  gap: '$3',
-  marginTop: '$4',
-});
-
-const SocialBtn = styled('a', {
-  width: '36px',
-  height: '36px',
-  borderRadius: '50%',
-  border: '1px solid rgba(255,255,255,0.12)',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  color: '#A1A1AA',
-  fontSize: '$xs',
-  fontWeight: '$semibold',
-  textDecoration: 'none',
-  '&:hover': { borderColor: 'rgba(248,113,113,0.4)', color: '#F87171' },
-});
-
 const Copyright = styled('p', {
   textAlign: 'center',
   fontFamily: '$poppins',
@@ -451,6 +431,47 @@ function LogoWithFallback() {
         if (src !== LOGO_FALLBACK) setSrc(LOGO_FALLBACK);
       }}
     />
+  );
+}
+
+/** Feature card icons — line SVGs aligned with create / private vote / results. */
+function IconCreateProposal() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="M14 2v6h6" stroke="currentColor" strokeWidth="1.75" strokeLinejoin="round" />
+      <path d="M12 11v6M9 14h6" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconPrivateVote() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path
+        d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z"
+        stroke="currentColor"
+        strokeWidth="1.75"
+        strokeLinejoin="round"
+      />
+      <path d="m9 12 2 2 4-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function IconViewResults() {
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M3 3v18h18" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M7 16V9" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M12 16v-5" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+      <path d="M17 16V7" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" />
+    </svg>
   );
 }
 
@@ -657,21 +678,21 @@ export default function HomePage() {
                 <CardGrid>
                   {[
                     {
-                      iconLabel: 'C',
+                      Icon: IconCreateProposal,
                       title: 'Create a proposal',
                       body: 'Register a new proposal ID and seed it with your first shielded interaction.',
                       href: '/dashboard',
                       cta: 'Open dashboard',
                     },
                     {
-                      iconLabel: 'V',
+                      Icon: IconPrivateVote,
                       title: 'Cast a private vote',
                       body: 'Generate a zero-knowledge proof locally — your choice never leaves your device in plaintext.',
                       href: '/dashboard',
                       cta: 'Start voting',
                     },
                     {
-                      iconLabel: 'R',
+                      Icon: IconViewResults,
                       title: 'View results',
                       body: 'Tallies update on-chain while individual ballots stay unlinkable.',
                       href: '/dashboard',
@@ -685,7 +706,9 @@ export default function HomePage() {
                       viewport={{ once: true, margin: '-40px' }}
                       transition={{ delay: 0.08 * i, duration: 0.45 }}
                     >
-                      <IconCircle aria-hidden>{f.iconLabel}</IconCircle>
+                      <IconCircle aria-hidden>
+                        <f.Icon />
+                      </IconCircle>
                       <FeatureTitle css={{ color: '#FAFAFA', marginBottom: '$2' }}>{f.title}</FeatureTitle>
                       <FeatureBody css={{ color: '#A1A1AA' }}>{f.body}</FeatureBody>
                       <CardLink href={f.href}>
@@ -765,14 +788,6 @@ export default function HomePage() {
                     <Body css={{ color: '#71717A', fontSize: '$sm', maxWidth: '280px' }}>
                       Private voting on Midnight with zero-knowledge proofs — governance without surveillance.
                     </Body>
-                    <SocialRow>
-                      <SocialBtn href="https://docs.midnight.network" target="_blank" rel="noreferrer">
-                        D
-                      </SocialBtn>
-                      <SocialBtn href="https://midnight.network" target="_blank" rel="noreferrer">
-                        M
-                      </SocialBtn>
-                    </SocialRow>
                   </div>
                   <div>
                     <FooterColTitle>Resources</FooterColTitle>
