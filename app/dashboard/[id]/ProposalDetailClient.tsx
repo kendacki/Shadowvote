@@ -26,8 +26,8 @@ const Header = styled('header', {
   gap: '$4',
   maxWidth: '1120px',
   margin: '0 auto',
-  padding: '$6 $5',
-  '@md': { padding: '$6 $7' },
+  padding: '$6 max($5, env(safe-area-inset-left, 0px)) $6 max($5, env(safe-area-inset-right, 0px))',
+  '@md': { padding: '$6 max($7, env(safe-area-inset-left, 0px)) $6 max($7, env(safe-area-inset-right, 0px))' },
 });
 
 const BackLink = styled(Link, {
@@ -42,8 +42,8 @@ const BackLink = styled(Link, {
 const Main = styled('main', {
   maxWidth: '1120px',
   margin: '0 auto',
-  padding: '$5 $5 $9',
-  '@md': { padding: '$6 $7 $9' },
+  padding: '$5 max($5, env(safe-area-inset-left, 0px)) $9 max($5, env(safe-area-inset-right, 0px))',
+  '@md': { padding: '$6 max($7, env(safe-area-inset-left, 0px)) $9 max($7, env(safe-area-inset-right, 0px))' },
   display: 'flex',
   flexDirection: 'column',
   gap: '$6',
@@ -57,7 +57,9 @@ const Actions = styled('div', {
 });
 
 const WalletCol = styled('div', {
-  textAlign: 'right',
+  textAlign: 'left',
+  width: '100%',
+  '@sm': { textAlign: 'right', width: 'auto' },
 });
 
 const SyncBanner = styled(motion.div, {
@@ -83,7 +85,9 @@ const VoteCastPill = styled(motion.div, {
   display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  minWidth: '200px',
+  width: '100%',
+  minWidth: '0',
+  maxWidth: '400px',
   padding: '$3 $6',
   borderRadius: '$pill',
   fontFamily: '$poppins',
@@ -92,6 +96,7 @@ const VoteCastPill = styled(motion.div, {
   color: '$white',
   background: gradientPrimary,
   boxShadow: '$buttonPrimary',
+  '@sm': { width: 'auto', minWidth: '200px' },
 });
 
 function formatAddress(a: string): string {

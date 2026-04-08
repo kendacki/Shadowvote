@@ -37,12 +37,23 @@ const Content = styled('div', {
 
 const Header = styled(motion.header, {
   display: 'grid',
-  gridTemplateColumns: '1fr auto 1fr',
+  gridTemplateColumns: 'minmax(0, 1fr) auto',
   alignItems: 'center',
+  columnGap: '$2',
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: '$5 $5 0',
-  '@md': { padding: '$6 $7 0' },
+  paddingTop: '$4',
+  paddingBottom: 0,
+  paddingLeft: 'max($4, env(safe-area-inset-left, 0px))',
+  paddingRight: 'max($4, env(safe-area-inset-right, 0px))',
+  '@xs': { columnGap: '$3', paddingTop: '$5' },
+  '@md': {
+    gridTemplateColumns: '1fr auto 1fr',
+    columnGap: '$4',
+    paddingTop: '$6',
+    paddingLeft: '$7',
+    paddingRight: '$7',
+  },
 });
 
 const NavCenter = styled('nav', {
@@ -70,15 +81,119 @@ const HeaderRight = styled('div', {
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'flex-end',
-  gap: '$3',
+  gap: '$2',
+  minWidth: 0,
+  flexShrink: 0,
+  '@xs': { gap: '$3' },
+});
+
+const HeaderEnd = styled('div', {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: '$2',
+  minWidth: 0,
+  '@xs': { gap: '$3' },
+});
+
+const MobileMenuButton = styled('button', {
+  all: 'unset',
+  boxSizing: 'border-box',
+  width: '40px',
+  height: '40px',
+  flexShrink: 0,
+  borderRadius: '$md',
+  border: '1px solid rgba(255,255,255,0.14)',
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  justifyContent: 'center',
+  gap: '5px',
+  cursor: 'pointer',
+  color: '#E4E4E7',
+  transition: 'border-color 0.2s, color 0.2s',
+  '@md': { display: 'none' },
+  '&:hover': { borderColor: 'rgba(248,113,113,0.45)', color: '#FAFAFA' },
+  '&:focus-visible': { outline: '2px solid #F87171', outlineOffset: '2px' },
+});
+
+const MobileNavBackdrop = styled(motion.div, {
+  position: 'fixed',
+  inset: 0,
+  zIndex: 200,
+  backgroundColor: 'rgba(3, 3, 6, 0.78)',
+  '@md': { display: 'none' },
+});
+
+const MobileNavSheet = styled(motion.nav, {
+  position: 'fixed',
+  top: 0,
+  right: 0,
+  bottom: 0,
+  zIndex: 201,
+  width: 'min(340px, calc(100vw - 48px))',
+  backgroundColor: '#0a0a0f',
+  borderLeft: '1px solid rgba(255,255,255,0.08)',
+  boxShadow: '-12px 0 40px rgba(0,0,0,0.5)',
+  padding: '$6 $5',
+  paddingTop: 'max($6, env(safe-area-inset-top, 0px))',
+  paddingBottom: 'max($6, env(safe-area-inset-bottom, 0px))',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '$2',
+  '@md': { display: 'none' },
+});
+
+const MobileNavLink = styled('a', {
+  fontFamily: '$poppins',
+  fontSize: '$md',
+  fontWeight: '$semibold',
+  color: '#D4D4D8',
+  textDecoration: 'none',
+  padding: '$4 $3',
+  borderRadius: '$md',
+  minHeight: '48px',
+  display: 'flex',
+  alignItems: 'center',
+  transition: 'background 0.2s, color 0.2s',
+  '&:hover': { backgroundColor: 'rgba(248,113,113,0.1)', color: '#FAFAFA' },
+});
+
+const MobileNavDivider = styled('div', {
+  height: '1px',
+  backgroundColor: 'rgba(255,255,255,0.08)',
+  margin: '$2 0',
+});
+
+const MobileNavCloseRow = styled('div', {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  marginBottom: '$2',
+});
+
+const MobileNavCloseBtn = styled('button', {
+  all: 'unset',
+  boxSizing: 'border-box',
+  width: '40px',
+  height: '40px',
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  borderRadius: '$md',
+  cursor: 'pointer',
+  color: '#A1A1AA',
+  '&:hover': { color: '#FAFAFA', backgroundColor: 'rgba(255,255,255,0.06)' },
+  '&:focus-visible': { outline: '2px solid #F87171', outlineOffset: '2px' },
 });
 
 const Brand = styled(Link, {
   display: 'flex',
   alignItems: 'center',
-  gap: '$3',
+  gap: '$2',
+  minWidth: 0,
   textDecoration: 'none',
   color: 'inherit',
+  '@xs': { gap: '$3' },
 });
 
 const LogoImg = styled('img', {
@@ -91,12 +206,16 @@ const LogoImg = styled('img', {
 const BrandWordmark = styled('span', {
   fontFamily: '$poppins',
   fontWeight: '$semibold',
-  fontSize: '$lg',
+  fontSize: '$md',
   letterSpacing: '-0.03em',
   background: gradientPrimary,
   WebkitBackgroundClip: 'text',
   backgroundClip: 'text',
   color: 'transparent',
+  whiteSpace: 'nowrap',
+  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  '@xs': { fontSize: '$lg' },
 });
 
 const SignUpBtn = styled('button', {
@@ -104,28 +223,32 @@ const SignUpBtn = styled('button', {
   boxSizing: 'border-box',
   fontFamily: '$poppins',
   fontWeight: '$semibold',
-  fontSize: '$sm',
-  padding: '$2 $5',
+  fontSize: '$xs',
+  padding: '$2 $3',
   borderRadius: '$pill',
   cursor: 'pointer',
   background: gradientPrimary,
   color: '#FFFFFF',
   boxShadow: '0 8px 28px rgba(185, 28, 28, 0.35)',
   transition: 'transform 0.2s, box-shadow 0.2s',
+  whiteSpace: 'nowrap',
+  flexShrink: 0,
+  '@xs': { fontSize: '$sm', padding: '$2 $5' },
   '&:hover': { transform: 'translateY(-1px)' },
 });
 
 const HeroGrid = styled('section', {
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: '$8 $5 $10',
+  padding: '$6 max($4, env(safe-area-inset-left, 0px)) $8 max($4, env(safe-area-inset-right, 0px))',
   display: 'grid',
-  gap: '$8',
+  gap: '$6',
   alignItems: 'center',
+  '@xs': { padding: '$7 $5 $9', gap: '$7' },
   '@lg': {
     gridTemplateColumns: '1fr 1fr',
     gap: '$9',
-    padding: '$9 $7 $11',
+    padding: '$9 max($7, env(safe-area-inset-left, 0px)) $11 max($7, env(safe-area-inset-right, 0px))',
   },
 });
 
@@ -159,7 +282,7 @@ const UnderlineWord = styled('span', {
 
 const Sub = styled('p', {
   fontFamily: '$poppins',
-  fontSize: '$lg',
+  fontSize: 'clamp(0.9375rem, 2.8vw, 1.125rem)',
   lineHeight: 1.65,
   color: '#A1A1AA',
   maxWidth: '520px',
@@ -195,28 +318,38 @@ const HeroLogo = styled(motion.img, {
   filter: 'drop-shadow(0 24px 48px rgba(239, 68, 68, 0.25))',
 });
 
-const FloatCard = styled(motion.div, {
+/** Positions the hero float pill without fighting Framer `x` transforms. */
+const FloatCardAnchor = styled('div', {
   position: 'absolute',
   zIndex: 2,
-  bottom: '12%',
-  left: '0',
+  bottom: '8%',
+  left: '50%',
+  transform: 'translateX(-50%)',
+  width: 'min(280px, calc(100vw - 32px))',
+  '@xs': { width: 'min(320px, calc(100vw - 40px))' },
+  '@md': { left: '4%', transform: 'none', width: 'auto', maxWidth: '360px' },
+});
+
+const FloatCard = styled(motion.div, {
   padding: '$3 $4',
   borderRadius: '$md',
   backgroundColor: 'rgba(15, 15, 20, 0.85)',
   border: '1px solid rgba(255,255,255,0.08)',
   backdropFilter: 'blur(12px)',
   fontFamily: '$poppins',
-  fontSize: '$xs',
+  fontSize: '11px',
+  textAlign: 'center',
   color: '#D4D4D8',
   boxShadow: '0 12px 40px rgba(0,0,0,0.45)',
-  '@md': { left: '4%' },
+  '@xs': { fontSize: '$xs' },
+  '@md': { textAlign: 'left' },
 });
 
 const Section = styled('section', {
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: '0 $5 $10',
-  '@md': { padding: '0 $7 $11' },
+  padding: '0 max($4, env(safe-area-inset-left, 0px)) $10 max($4, env(safe-area-inset-right, 0px))',
+  '@md': { padding: '0 max($7, env(safe-area-inset-left, 0px)) $11 max($7, env(safe-area-inset-right, 0px))' },
 });
 
 const SectionTitle = styled('h2', {
@@ -337,7 +470,7 @@ const EmailInput = styled('input', {
 
 const Footer = styled('footer', {
   borderTop: '1px solid rgba(255,255,255,0.06)',
-  padding: '$9 $5 $6',
+  padding: '$9 max($5, env(safe-area-inset-left, 0px)) $6 max($5, env(safe-area-inset-right, 0px))',
   maxWidth: '1200px',
   margin: '0 auto',
 });
@@ -475,6 +608,14 @@ function IconViewResults() {
   );
 }
 
+function HamburgerGlyph() {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
+      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 function HeroEmblem() {
   const [src, setSrc] = useState(LOGO_SRC);
   return (
@@ -506,9 +647,11 @@ export default function HomePage() {
   const wallet = useMidnightWallet();
   const blocking = wallet.isLoading || wallet.isConnecting;
   const [boardOpen, setBoardOpen] = useState(false);
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const boardRef = useRef<HTMLDivElement>(null);
 
   const closeBoard = useCallback(() => setBoardOpen(false), []);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
 
   useEffect(() => {
     if (!boardOpen) return;
@@ -520,6 +663,34 @@ export default function HomePage() {
     document.addEventListener('mousedown', onDoc);
     return () => document.removeEventListener('mousedown', onDoc);
   }, [boardOpen]);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [mobileNavOpen]);
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const onMq = () => {
+      if (mq.matches) setMobileNavOpen(false);
+    };
+    onMq();
+    mq.addEventListener('change', onMq);
+    return () => mq.removeEventListener('change', onMq);
+  }, []);
+
+  useEffect(() => {
+    if (!mobileNavOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') closeMobileNav();
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [mobileNavOpen, closeMobileNav]);
 
   return (
     <Page>
@@ -546,6 +717,64 @@ export default function HomePage() {
       />
 
       <Content>
+        <AnimatePresence>
+          {mobileNavOpen ? (
+            <>
+              <MobileNavBackdrop
+                key="nav-backdrop"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2 }}
+                aria-hidden
+                onClick={closeMobileNav}
+                style={{ cursor: 'pointer' }}
+              />
+              <MobileNavSheet
+                key="nav-sheet"
+                id="mobile-primary-nav"
+                aria-label="Main navigation"
+                initial={{ x: '100%' }}
+                animate={{ x: 0 }}
+                exit={{ x: '100%' }}
+                transition={{ type: 'spring', stiffness: 420, damping: 36 }}
+              >
+                <MobileNavCloseRow>
+                  <MobileNavCloseBtn type="button" aria-label="Close menu" onClick={closeMobileNav}>
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
+                      <path
+                        d="M18 6L6 18M6 6l12 12"
+                        stroke="currentColor"
+                        strokeWidth="2"
+                        strokeLinecap="round"
+                      />
+                    </svg>
+                  </MobileNavCloseBtn>
+                </MobileNavCloseRow>
+                <MobileNavLink href="#roadmap" onClick={closeMobileNav}>
+                  Roadmap
+                </MobileNavLink>
+                <MobileNavLink href="/dashboard" onClick={closeMobileNav}>
+                  Dashboard
+                </MobileNavLink>
+                <MobileNavLink href="https://docs.midnight.network" target="_blank" rel="noreferrer" onClick={closeMobileNav}>
+                  Updates
+                </MobileNavLink>
+                <MobileNavDivider />
+                <MobileNavLink
+                  href="#"
+                  onClick={(e) => {
+                    e.preventDefault();
+                    closeMobileNav();
+                    void wallet.connect();
+                  }}
+                >
+                  {wallet.isConnected ? 'Wallet' : 'Login'}
+                </MobileNavLink>
+              </MobileNavSheet>
+            </>
+          ) : null}
+        </AnimatePresence>
         <AnimatePresence mode="wait">
           {blocking ? (
             <motion.div
@@ -606,29 +835,50 @@ export default function HomePage() {
                   </NavLink>
                 </NavCenter>
 
-                <HeaderRight>
-                  {wallet.isConnected && wallet.unshieldedAddress ? (
-                    <Caption css={{ color: '#A1A1AA', maxWidth: '140px', textAlign: 'right', display: 'none', '@sm': { display: 'block' } }}>
-                      {wallet.unshieldedAddress.slice(0, 10)}…{wallet.unshieldedAddress.slice(-6)}
-                    </Caption>
-                  ) : null}
-                  <Button
+                <HeaderEnd>
+                  <MobileMenuButton
                     type="button"
-                    variant="secondary"
-                    onClick={() => (wallet.isConnected ? wallet.disconnect() : wallet.connect())}
-                    style={{
-                      borderColor: 'rgba(255,255,255,0.2)',
-                      backgroundColor: 'transparent',
-                      color: '#F4F4F5',
-                      boxShadow: 'none',
-                    }}
+                    aria-label="Open menu"
+                    aria-expanded={mobileNavOpen}
+                    aria-controls="mobile-primary-nav"
+                    onClick={() => setMobileNavOpen(true)}
                   >
-                    {wallet.isConnected ? 'Disconnect' : 'Connect'}
-                  </Button>
-                  <SignUpBtn type="button" onClick={() => router.push('/dashboard')}>
-                    Open app
-                  </SignUpBtn>
-                </HeaderRight>
+                    <HamburgerGlyph />
+                  </MobileMenuButton>
+                  <HeaderRight>
+                    {wallet.isConnected && wallet.unshieldedAddress ? (
+                      <Caption
+                        css={{
+                          color: '#A1A1AA',
+                          maxWidth: '140px',
+                          textAlign: 'right',
+                          display: 'none',
+                          '@sm': { display: 'block' },
+                        }}
+                      >
+                        {wallet.unshieldedAddress.slice(0, 10)}…{wallet.unshieldedAddress.slice(-6)}
+                      </Caption>
+                    ) : null}
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => (wallet.isConnected ? wallet.disconnect() : wallet.connect())}
+                      style={{
+                        borderColor: 'rgba(255,255,255,0.2)',
+                        backgroundColor: 'transparent',
+                        color: '#F4F4F5',
+                        boxShadow: 'none',
+                        padding: '10px 14px',
+                        fontSize: '0.875rem',
+                      }}
+                    >
+                      {wallet.isConnected ? 'Disconnect' : 'Connect'}
+                    </Button>
+                    <SignUpBtn type="button" onClick={() => router.push('/dashboard')}>
+                      Open app
+                    </SignUpBtn>
+                  </HeaderRight>
+                </HeaderEnd>
               </Header>
 
               <HeroGrid>
@@ -667,9 +917,11 @@ export default function HomePage() {
 
                 <HeroVisual>
                   <HeroEmblem />
-                  <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
-                    ZK proof ready → submit via Lace
-                  </FloatCard>
+                  <FloatCardAnchor>
+                    <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
+                      ZK proof ready → submit via Lace
+                    </FloatCard>
+                  </FloatCardAnchor>
                 </HeroVisual>
               </HeroGrid>
 

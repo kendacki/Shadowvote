@@ -26,32 +26,43 @@ const Header = styled('header', {
   gap: '$4',
   maxWidth: '1120px',
   margin: '0 auto',
-  padding: '$6 $5',
-  '@md': { padding: '$6 $7' },
+  padding: '$6 max($5, env(safe-area-inset-left, 0px)) $6 max($5, env(safe-area-inset-right, 0px))',
+  '@md': { padding: '$6 max($7, env(safe-area-inset-left, 0px)) $6 max($7, env(safe-area-inset-right, 0px))' },
 });
 
 const WalletPanel = styled('div', {
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'flex-end',
+  alignItems: 'flex-start',
   gap: '$1',
-  textAlign: 'right',
+  textAlign: 'left',
+  width: '100%',
+  '@sm': {
+    width: 'auto',
+    alignItems: 'flex-end',
+    textAlign: 'right',
+  },
 });
 
 const Toolbar = styled('div', {
   display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'space-between',
+  flexDirection: 'column',
+  alignItems: 'stretch',
   gap: '$4',
   marginBottom: '$6',
+  '@sm': {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
 });
 
 const Main = styled('main', {
   maxWidth: '1120px',
   margin: '0 auto',
-  padding: '$5 $5 $9',
-  '@md': { padding: '$6 $7 $9' },
+  padding: '$5 max($5, env(safe-area-inset-left, 0px)) $9 max($5, env(safe-area-inset-right, 0px))',
+  '@md': { padding: '$6 max($7, env(safe-area-inset-left, 0px)) $9 max($7, env(safe-area-inset-right, 0px))' },
 });
 
 const Grid = styled(motion.div, {

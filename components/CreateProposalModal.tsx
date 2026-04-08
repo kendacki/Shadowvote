@@ -59,9 +59,15 @@ const Input = styled('input', {
 
 const Actions = styled('div', {
   display: 'flex',
+  flexDirection: 'column-reverse',
   gap: '$3',
-  justifyContent: 'flex-end',
   marginTop: '$2',
+  '& > *': { width: '100%' },
+  '@sm': {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    '& > *': { width: 'auto' },
+  },
 });
 
 export type CreateProposalModalProps = {
