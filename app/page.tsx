@@ -239,15 +239,16 @@ const SignUpBtn = styled('button', {
 
 const HeroGrid = styled('section', {
   maxWidth: '1200px',
-  margin: '0 auto',
+  margin: '$5 auto 0',
   padding: '$6 max($4, env(safe-area-inset-left, 0px)) $8 max($4, env(safe-area-inset-right, 0px))',
   display: 'grid',
   gap: '$6',
   alignItems: 'center',
-  '@xs': { padding: '$7 $5 $9', gap: '$7' },
+  '@xs': { marginTop: '$6', padding: '$7 $5 $9', gap: '$7' },
   '@lg': {
     gridTemplateColumns: '1fr 1fr',
     gap: '$9',
+    marginTop: '$7',
     padding: '$9 max($7, env(safe-area-inset-left, 0px)) $11 max($7, env(safe-area-inset-right, 0px))',
   },
 });
