@@ -3,7 +3,7 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Button } from '@/components/Button';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Body, Caption, FeatureBody, FeatureTitle, H2 } from '@/components/Typography';
@@ -49,33 +49,11 @@ const Header = styled(motion.header, {
   paddingRight: 'max($4, env(safe-area-inset-right, 0px))',
   '@xs': { columnGap: '$3', paddingTop: '$5' },
   '@md': {
-    gridTemplateColumns: '1fr auto 1fr',
     columnGap: '$4',
     paddingTop: '$6',
     paddingLeft: '$7',
     paddingRight: '$7',
   },
-});
-
-const NavCenter = styled('nav', {
-  display: 'none',
-  '@md': {
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: '$6',
-  },
-});
-
-const NavLink = styled('a', {
-  fontFamily: '$poppins',
-  fontSize: '$sm',
-  fontWeight: '$regular',
-  color: '#A1A1AA',
-  textDecoration: 'none',
-  cursor: 'pointer',
-  transition: 'color 0.2s',
-  '&:hover': { color: '#F4F4F5' },
 });
 
 const HeaderWalletMeta = styled('div', {
@@ -105,96 +83,6 @@ const HeaderEnd = styled('div', {
   gap: '$2',
   minWidth: 0,
   '@xs': { gap: '$3' },
-});
-
-const MobileMenuButton = styled('button', {
-  all: 'unset',
-  boxSizing: 'border-box',
-  width: '40px',
-  height: '40px',
-  flexShrink: 0,
-  borderRadius: '$md',
-  border: '1px solid rgba(255,255,255,0.14)',
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '5px',
-  cursor: 'pointer',
-  color: '#E4E4E7',
-  transition: 'border-color 0.2s, color 0.2s',
-  '@md': { display: 'none' },
-  '&:hover': { borderColor: 'rgba(248,113,113,0.45)', color: '#FAFAFA' },
-  '&:focus-visible': { outline: '2px solid #F87171', outlineOffset: '2px' },
-});
-
-const MobileNavBackdrop = styled(motion.div, {
-  position: 'fixed',
-  inset: 0,
-  zIndex: 200,
-  backgroundColor: 'rgba(3, 3, 6, 0.78)',
-  '@md': { display: 'none' },
-});
-
-const MobileNavSheet = styled(motion.nav, {
-  position: 'fixed',
-  top: 0,
-  right: 0,
-  bottom: 0,
-  zIndex: 201,
-  width: 'min(340px, calc(100vw - 48px))',
-  backgroundColor: '#0a0a0f',
-  borderLeft: '1px solid rgba(255,255,255,0.08)',
-  boxShadow: '-12px 0 40px rgba(0,0,0,0.5)',
-  padding: '$6 $5',
-  paddingTop: 'max($6, env(safe-area-inset-top, 0px))',
-  paddingBottom: 'max($6, env(safe-area-inset-bottom, 0px))',
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '$2',
-  '@md': { display: 'none' },
-});
-
-const MobileNavLink = styled('a', {
-  fontFamily: '$poppins',
-  fontSize: '$md',
-  fontWeight: '$semibold',
-  color: '#D4D4D8',
-  textDecoration: 'none',
-  padding: '$4 $3',
-  borderRadius: '$md',
-  minHeight: '48px',
-  display: 'flex',
-  alignItems: 'center',
-  transition: 'background 0.2s, color 0.2s',
-  '&:hover': { backgroundColor: 'rgba(248,113,113,0.1)', color: '#FAFAFA' },
-});
-
-const MobileNavDivider = styled('div', {
-  height: '1px',
-  backgroundColor: 'rgba(255,255,255,0.08)',
-  margin: '$2 0',
-});
-
-const MobileNavCloseRow = styled('div', {
-  display: 'flex',
-  justifyContent: 'flex-end',
-  marginBottom: '$2',
-});
-
-const MobileNavCloseBtn = styled('button', {
-  all: 'unset',
-  boxSizing: 'border-box',
-  width: '40px',
-  height: '40px',
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  borderRadius: '$md',
-  cursor: 'pointer',
-  color: '#A1A1AA',
-  '&:hover': { color: '#FAFAFA', backgroundColor: 'rgba(255,255,255,0.06)' },
-  '&:focus-visible': { outline: '2px solid #F87171', outlineOffset: '2px' },
 });
 
 const Brand = styled(Link, {
@@ -588,14 +476,6 @@ function IconViewResults() {
   );
 }
 
-function HamburgerGlyph() {
-  return (
-    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" aria-hidden>
-      <path d="M4 7h16M4 12h16M4 17h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 function HeroEmblem() {
   const [src, setSrc] = useState(LOGO_SRC);
   return (
@@ -626,38 +506,6 @@ export default function HomePage() {
   const router = useRouter();
   const wallet = useMidnightWallet();
   const blocking = wallet.isLoading || wallet.isConnecting;
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
-
-  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
-
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = prev;
-    };
-  }, [mobileNavOpen]);
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)');
-    const onMq = () => {
-      if (mq.matches) setMobileNavOpen(false);
-    };
-    onMq();
-    mq.addEventListener('change', onMq);
-    return () => mq.removeEventListener('change', onMq);
-  }, []);
-
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') closeMobileNav();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [mobileNavOpen, closeMobileNav]);
-
   return (
     <Page>
       <Blob
@@ -683,58 +531,6 @@ export default function HomePage() {
       />
 
       <Content>
-        <AnimatePresence>
-          {mobileNavOpen ? (
-            <>
-              <MobileNavBackdrop
-                key="nav-backdrop"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                transition={{ duration: 0.2 }}
-                aria-hidden
-                onClick={closeMobileNav}
-                style={{ cursor: 'pointer' }}
-              />
-              <MobileNavSheet
-                key="nav-sheet"
-                id="mobile-primary-nav"
-                aria-label="Main navigation"
-                initial={{ x: '100%' }}
-                animate={{ x: 0 }}
-                exit={{ x: '100%' }}
-                transition={{ type: 'spring', stiffness: 420, damping: 36 }}
-              >
-                <MobileNavCloseRow>
-                  <MobileNavCloseBtn type="button" aria-label="Close menu" onClick={closeMobileNav}>
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" aria-hidden>
-                      <path
-                        d="M18 6L6 18M6 6l12 12"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                      />
-                    </svg>
-                  </MobileNavCloseBtn>
-                </MobileNavCloseRow>
-                <MobileNavLink href="https://docs.midnight.network" target="_blank" rel="noreferrer" onClick={closeMobileNav}>
-                  Updates
-                </MobileNavLink>
-                <MobileNavDivider />
-                <MobileNavLink
-                  href="#"
-                  onClick={(e) => {
-                    e.preventDefault();
-                    closeMobileNav();
-                    void wallet.connect();
-                  }}
-                >
-                  {wallet.isConnected ? 'Wallet' : 'Login'}
-                </MobileNavLink>
-              </MobileNavSheet>
-            </>
-          ) : null}
-        </AnimatePresence>
         <AnimatePresence mode="wait">
           {blocking ? (
             <motion.div
@@ -754,31 +550,7 @@ export default function HomePage() {
                   <BrandWordmark>ShadowVote</BrandWordmark>
                 </Brand>
 
-                <NavCenter>
-                  <NavLink href="https://docs.midnight.network" target="_blank" rel="noreferrer">
-                    Updates
-                  </NavLink>
-                  <NavLink
-                    href="#"
-                    onClick={(e) => {
-                      e.preventDefault();
-                      void wallet.connect();
-                    }}
-                  >
-                    {wallet.isConnected ? 'Wallet' : 'Login'}
-                  </NavLink>
-                </NavCenter>
-
                 <HeaderEnd>
-                  <MobileMenuButton
-                    type="button"
-                    aria-label="Open menu"
-                    aria-expanded={mobileNavOpen}
-                    aria-controls="mobile-primary-nav"
-                    onClick={() => setMobileNavOpen(true)}
-                  >
-                    <HamburgerGlyph />
-                  </MobileMenuButton>
                   <HeaderRight>
                     {wallet.isConnected && wallet.unshieldedAddress ? (
                       <HeaderWalletMeta>
