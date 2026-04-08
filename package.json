@@ -7,7 +7,7 @@
     "dev": "next dev",
     "dev:vite": "vite",
     "build": "next build",
-    "build:vite": "tsc -b && vite build",
+    "build:vite": "tsc -p src/tsconfig.json --noEmit && vite build",
     "preview": "next start",
     "preview:vite": "vite preview",
     "start": "next start",

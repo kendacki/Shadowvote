@@ -32,7 +32,6 @@
     "utils/**/*.ts",
     "config/**/*.ts",
     "contexts/**/*.tsx",
-    "src/**/*.ts",
     "stitches.config.ts",
     ".next/types/**/*.ts"
   ],
