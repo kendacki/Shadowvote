@@ -1,0 +1,31 @@
+# Dependencies & build
+node_modules/
+.next/
+dist/
+out/
+
+# Secrets and local overrides (never commit)
+.env
+.env.*
+!.env.example
+*.local
+*.pem
+*.key
+midnight.config.local.json
+
+# Tooling / OS
+.DS_Store
+Thumbs.db
+
+# Midnight / deploy artifacts with environment-specific data
+deployment.json
+
+# Databases & caches (Level / IndexedDB-style stores may contain private state)
+shadowvote-midnight-db/
+shadowvote-db/
+*.ldb
+*.log
+npm-debug.log*
+
+# Optional local helpers that may contain mnemonics
+get-key.local.mjs

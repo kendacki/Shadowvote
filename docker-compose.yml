@@ -1,0 +1,8 @@
+# Midnight local proof server (ZK proving). Matches ledger-v8 / midnight-js 4.x tutorial images.
+# Start before `npm run deploy`: proofs are generated against http://127.0.0.1:6300
+services:
+  proof-server:
+    image: midnightntwrk/proof-server:8.0.3
+    ports:
+      - "6300:6300"
+    command: ["midnight-proof-server", "-v"]

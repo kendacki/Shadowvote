@@ -1,0 +1,7 @@
+{
+  "network": "preprod",
+  "rpcUrl": "https://rpc.preprod.midnight.network",
+  "indexerUrl": "https://indexer.preprod.midnight.network/api/v3/graphql",
+  "indexerWsUrl": "wss://indexer.preprod.midnight.network/api/v3/graphql/ws",
+  "proofServerUrl": "http://127.0.0.1:6300"
+}

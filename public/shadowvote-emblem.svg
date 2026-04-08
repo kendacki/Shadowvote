@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 140" fill="none" aria-hidden="true">
+  <defs>
+    <linearGradient id="svGrad" x1="20%" y1="0%" x2="80%" y2="100%">
+      <stop offset="0%" stop-color="#F87171"/>
+      <stop offset="45%" stop-color="#EF4444"/>
+      <stop offset="100%" stop-color="#7F1D1D"/>
+    </linearGradient>
+    <linearGradient id="svEye" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FECACA"/>
+      <stop offset="100%" stop-color="#EF4444"/>
+    </linearGradient>
+  </defs>
+  <!-- Hood + V silhouette -->
+  <path fill="url(#svGrad)" d="M60 8C38 8 20 26 16 48c-2 12 2 28 12 42 8 10 18 18 32 22v-6c-8-4-14-12-18-22-4-12-2-24 6-32 6-6 16-10 26-10s20 4 26 10c8 8 10 20 6 32-4 10-10 18-18 22v6c14-4 24-12 32-22 10-14 14-30 12-42C100 26 82 8 60 8Z"/>
+  <path fill="url(#svGrad)" d="M44 118 60 92l16 26c6 10 18 16 30 16h-8c-10 0-18-4-24-12L60 104 42 122c-6 8-14 12-24 12h-8c12 0 24-6 30-16Z"/>
+  <!-- Eyes -->
+  <path fill="url(#svEye)" d="M42 52c4-2 10-2 14 2-4 4-10 4-14 2-2-1-2-3 0-4Zm22 0c4-2 10-2 14 2-4 4-10 4-14 2-2-1-2-3 0-4Z"/>
+</svg>

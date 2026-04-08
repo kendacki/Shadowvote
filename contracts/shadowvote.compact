@@ -1,0 +1,83 @@
+// =============================================================================
+// ShadowVote — Zero-knowledge governance (Midnight Compact)
+// =============================================================================
+// Public state: per-proposal tallies, spent nullifiers, and the authorized-voter
+// Merkle root. Private inputs: voter secret and Merkle inclusion path. 
+// The vote circuit proves membership, enforces one vote per (secret, proposal) 
+// via a nullifier, and increments the proposal tally without exposing the voter.
+// =============================================================================
+
+pragma language_version 0.22;
+
+import CompactStandardLibrary;
+
+// -----------------------------------------------------------------------------
+// Public ledger (replicated on-chain state)
+// -----------------------------------------------------------------------------
+export ledger proposals: Map<Uint<32>, Uint<32>>;
+export ledger nullifiers: Set<Bytes<32>>;
+export sealed ledger voterRoot: MerkleTreeDigest;
+
+// -----------------------------------------------------------------------------
+// Constructor
+// -----------------------------------------------------------------------------
+constructor(initialVoterRoot: MerkleTreeDigest) {
+  // Explicitly disclose the root so it can be committed to the public ledger
+  voterRoot = disclose(initialVoterRoot);
+}
+
+// -----------------------------------------------------------------------------
+// Private witnesses (provided by local execution / prover — never public)
+// -----------------------------------------------------------------------------
+witness voterSecret(): Bytes<32>;
+witness voterMembershipPath(): MerkleTreePath<20, Bytes<32>>;
+
+// -----------------------------------------------------------------------------
+// Internal circuits
+// -----------------------------------------------------------------------------
+circuit voterLeafHash(secret: Bytes<32>): Bytes<32> {
+  return persistentHash<Vector<2, Bytes<32>>>([
+    pad(32, "shadowvote:voter:leaf:v1"),
+    secret,
+  ]);
+}
+
+circuit computeNullifier(secret: Bytes<32>, proposalId: Uint<32>): Bytes<32> {
+  return persistentHash<Vector<3, Bytes<32>>>([
+    pad(32, "shadowvote:nullifier:v1"),
+    secret,
+    proposalId as Bytes<32>,
+  ]);
+}
+
+// -----------------------------------------------------------------------------
+// Exported transition — cast one anonymous vote on proposalId
+// -----------------------------------------------------------------------------
+export circuit vote(proposalId: Uint<32>): [] {
+  // Explicitly disclose the proposal ID so the network knows what is being voted on
+  const pid = disclose(proposalId);
+  
+  const sk = voterSecret();
+  const path = voterMembershipPath();
+
+  // 1. Identity: The claimed Merkle leaf must be the hash of the witness secret.
+  assert(path.leaf == voterLeafHash(sk), "ShadowVote: leaf does not match secret");
+
+  // 2. Membership: The recomputed root from the path must equal the sealed voter root.
+  const computedRoot = merkleTreePathRoot<20, Bytes<32>>(path);
+  assert(computedRoot.field == voterRoot.read().field, "ShadowVote: invalid Merkle proof");
+
+  // 3. Sybil Resistance: Compute nullifier locally, then disclose it to the network
+  const nullifier = disclose(computeNullifier(sk, pid));
+  assert(!nullifiers.member(nullifier), "ShadowVote: nullifier already spent");
+
+  nullifiers.insert(nullifier);
+
+  // 4. Tally: Increment proposal vote count using the disclosed pid
+  if (proposals.member(pid)) {
+    const currentCount = proposals.lookup(pid);
+    proposals.insert(pid, (currentCount + 1) as Uint<32>);
+  } else {
+    proposals.insert(pid, 1);
+  }
+}

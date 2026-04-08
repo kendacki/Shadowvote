@@ -1,0 +1,23 @@
+# ShadowVote - Midnight Network Hackathon (.cursorrules)
+
+## 1. Operating Directives & Code Modification Rules
+- **Zero-Alteration Rule:** You MUST strictly respect all existing code. NEVER modify, rewrite, refactor, or delete any previous code unless explicitly commanded to do so by the user.
+- **Additive Development Only:** When implementing new features or fixes, strictly add new code. 
+- **Functional Synergy:** All newly generated code must synchronize seamlessly with the existing codebase. Ensure new logic interfaces perfectly with previous variables, functions, and state management. The entire application must remain functionally intact and cohesive after your additions.
+- **Architectural Awareness:** Act as a Principal Systems Architect. Consider edge cases, failure states, and second-order effects before generating code.
+
+## 2. Tech Stack & Infrastructure
+- **Frontend:** React, TypeScript, Vite.
+- **Smart Contracts:** Compact (Midnight Network).
+- **Wallet Integration:** Lace Midnight Preview Wallet (`window.midnight.lace`).
+- **Deployment:** Static hosting via Vercel (No server-side rendering or external Web2 APIs).
+
+## 3. Midnight Network & ZK Constraints
+- **State Separation:** Clearly distinguish between Public State (Ledger/Counters), Private State (Witnesses/Local Hardware), and Execution (ZK Circuits).
+- **No External APIs:** Do not implement standard backend REST APIs. All state changes must occur via local ZK proof generation and submission to the Midnight RPC.
+- **WASM Handling:** Midnight's Compact compilation generates WebAssembly (`.wasm`) files. Ensure Vite and React imports are structured to handle these asynchronous binary loads without crashing.
+
+## 4. Wallet & UI Interaction Rules
+- **Asynchronous Injection:** Assume `window.midnight.lace` is injected asynchronously. Always implement polling or event listeners before attempting to call wallet methods.
+- **State Feedback:** Provide clear UI feedback for blockchain interactions. ZK proof generation and network submission take time; always implement loading states and error boundaries for `BalanceCheckOverspend` (insufficient DUST).
+- **No Private Data Leaks:** Never console.log or render private witness data, seeds, or unhashed Nullifier inputs.
