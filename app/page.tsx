@@ -189,14 +189,12 @@ const Sub = styled('p', {
   margin: '0 0 $7 0',
 });
 
-const HeroRightStack = styled('div', {
+const HeroLeftStack = styled('div', {
   display: 'flex',
   flexDirection: 'column',
-  alignItems: 'center',
-  gap: '$6',
+  alignItems: 'flex-start',
   minWidth: 0,
   width: '100%',
-  '@lg': { gap: '$7' },
 });
 
 const HeroVisual = styled(motion.div, {
@@ -597,50 +595,60 @@ export default function HomePage() {
               </Header>
 
               <HeroGrid>
-                <div>
-                  <Overline>Private governance · Zero-knowledge</Overline>
-                  <HeroTitle>
-                    <UnderlineWord>Cast</UnderlineWord> and <UnderlineWord>Vote</UnderlineWord> on Shielded Proposals.
-                  </HeroTitle>
-                  <Sub>
-                    Anonymous governance on Midnight: prove membership without revealing identity. Your vote stays
-                    private; integrity stays public.
-                  </Sub>
-                  <motion.div
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.12, duration: 0.5 }}
-                    style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}
+                <HeroLeftStack>
+                  <SectionTitle
+                    id="roadmap"
+                    css={{
+                      textAlign: 'left',
+                      marginBottom: '$7',
+                      '@xs': { marginBottom: '$8' },
+                      '@lg': { marginBottom: '$9' },
+                    }}
                   >
-                    <Button type="button" variant="primary" onClick={() => router.push('/dashboard')}>
-                      Get started
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => window.open('https://docs.midnight.network', '_blank')}
-                      style={{
-                        borderColor: 'rgba(255,255,255,0.2)',
-                        backgroundColor: 'transparent',
-                        color: '#E4E4E7',
-                      }}
+                    What to do next
+                  </SectionTitle>
+                  <div>
+                    <Overline>Private governance · Zero-knowledge</Overline>
+                    <HeroTitle>
+                      <UnderlineWord>Cast</UnderlineWord> and <UnderlineWord>Vote</UnderlineWord> on Shielded Proposals.
+                    </HeroTitle>
+                    <Sub>
+                      Anonymous governance on Midnight: prove membership without revealing identity. Your vote stays
+                      private; integrity stays public.
+                    </Sub>
+                    <motion.div
+                      initial={{ opacity: 0, y: 12 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.12, duration: 0.5 }}
+                      style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}
                     >
-                      Documentation
-                    </Button>
-                  </motion.div>
-                </div>
+                      <Button type="button" variant="primary" onClick={() => router.push('/dashboard')}>
+                        Get started
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => window.open('https://docs.midnight.network', '_blank')}
+                        style={{
+                          borderColor: 'rgba(255,255,255,0.2)',
+                          backgroundColor: 'transparent',
+                          color: '#E4E4E7',
+                        }}
+                      >
+                        Documentation
+                      </Button>
+                    </motion.div>
+                  </div>
+                </HeroLeftStack>
 
-                <HeroRightStack>
-                  <HeroVisual>
-                    <HeroEmblem />
-                    <FloatCardAnchor>
-                      <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
-                        ZK proof ready → submit via Lace
-                      </FloatCard>
-                    </FloatCardAnchor>
-                  </HeroVisual>
-                  <SectionTitle id="roadmap">What to do next</SectionTitle>
-                </HeroRightStack>
+                <HeroVisual>
+                  <HeroEmblem />
+                  <FloatCardAnchor>
+                    <FloatCard initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4 }}>
+                      ZK proof ready → submit via Lace
+                    </FloatCard>
+                  </FloatCardAnchor>
+                </HeroVisual>
               </HeroGrid>
 
               <Section aria-labelledby="roadmap">
