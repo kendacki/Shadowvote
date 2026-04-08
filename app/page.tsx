@@ -926,9 +926,38 @@ export default function HomePage() {
                 </HeroVisual>
               </HeroGrid>
 
-              <Section id="roadmap">
-                <SectionTitle>What to do next</SectionTitle>
-                <CardGrid>
+              <Section
+                id="roadmap"
+                css={{
+                  '@lg': {
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    columnGap: '$9',
+                    rowGap: '$8',
+                    alignItems: 'start',
+                  },
+                }}
+              >
+                <SectionTitle
+                  css={{
+                    '@lg': {
+                      gridColumn: '2',
+                      gridRow: '1',
+                      textAlign: 'left',
+                      justifySelf: 'start',
+                    },
+                  }}
+                >
+                  What to do next
+                </SectionTitle>
+                <CardGrid
+                  css={{
+                    '@lg': {
+                      gridColumn: '1 / -1',
+                      gridRow: '2',
+                    },
+                  }}
+                >
                   {[
                     {
                       Icon: IconCreateProposal,
