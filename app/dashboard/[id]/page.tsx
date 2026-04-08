@@ -1,11 +1,12 @@
 'use client';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
 import dynamic from 'next/dynamic';
 import { notFound, useParams } from 'next/navigation';
 
 const ProposalDetailClient = dynamic(() => import('./ProposalDetailClient'), {
   ssr: false,
-  loading: () => null,
+  loading: () => <LoadingScreen message="Loading proposal…" variant="light" />,
 });
 
 export default function ProposalDetailPage() {

@@ -26,6 +26,9 @@ export const viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={poppins.variable}>
+      <head>
+        <link rel="preload" href="/shadowvote-logo.png" as="image" type="image/png" />
+      </head>
       <body style={{ fontFamily: 'var(--font-poppins), Poppins, system-ui, sans-serif' }}>
         <NetworkBanner />
         <ClientRoot>{children}</ClientRoot>

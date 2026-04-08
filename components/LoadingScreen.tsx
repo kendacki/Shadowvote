@@ -4,41 +4,50 @@ import { keyframes, styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useState } from 'react';
 
-const pulse = keyframes({
-  '0%, 100%': { opacity: 0.85, transform: 'scale(1)' },
-  '50%': { opacity: 1, transform: 'scale(1.02)' },
+/** Opacity-only pulse so it never fights Framer Motion transforms on the same node. */
+const pulseOpacity = keyframes({
+  '0%, 100%': { opacity: 0.82 },
+  '50%': { opacity: 1 },
 });
 
 const Root = styled('div', {
   position: 'fixed',
   inset: 0,
-  zIndex: 100,
+  /** Above page content and mobile nav; below NetworkBanner (1000) so the testnet bar stays visible. */
+  zIndex: 900,
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
-  backgroundColor: '#030306',
 });
 
 const LogoFrame = styled(motion.div, {
   display: 'flex',
+  pointerEvents: 'none',
   flexDirection: 'column',
   alignItems: 'center',
   gap: '$5',
 });
 
-const Logo = styled(motion.img, {
+/** Pulsing wrapper — keeps CSS animation off the &lt;img&gt; so layout and onError stay reliable. */
+const LogoPulseWrap = styled('div', {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  animation: `${pulseOpacity} 2.4s ease-in-out infinite`,
+});
+
+const LogoImg = styled('img', {
   width: '120px',
   height: '120px',
   objectFit: 'contain',
+  display: 'block',
   filter: 'drop-shadow(0 12px 32px rgba(239, 68, 68, 0.2))',
-  animation: `${pulse} 2.4s ease-in-out infinite`,
 });
 
 const Label = styled('span', {
   fontFamily: '$poppins',
   fontWeight: '$regular',
   fontSize: '$sm',
-  color: '#A1A1AA',
   letterSpacing: '0.08em',
   textTransform: 'uppercase',
 });
@@ -46,30 +55,48 @@ const Label = styled('span', {
 const LOGO_PNG = '/shadowvote-logo.png';
 const LOGO_SVG = '/shadowvote-emblem.svg';
 
-type LoadingScreenProps = {
+export type LoadingScreenProps = {
   message?: string;
+  /** `light` matches dashboard shell; `dark` matches the marketing page. */
+  variant?: 'dark' | 'light';
 };
 
-export function LoadingScreen({ message = 'Initializing' }: LoadingScreenProps) {
+export function LoadingScreen({ message = 'Initializing', variant = 'dark' }: LoadingScreenProps) {
   const [src, setSrc] = useState(LOGO_PNG);
+
+  const isLight = variant === 'light';
+
   return (
-    <Root>
+    <Root
+      css={{
+        backgroundColor: isLight ? '$white' : '#030306',
+      }}
+    >
       <LogoFrame
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.55, ease: [0.22, 1, 0.36, 1] }}
       >
-        <Logo
-          src={src}
-          alt="ShadowVote"
-          initial={{ opacity: 0, scale: 0.94 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.1, duration: 0.5, ease: 'easeOut' }}
-          onError={() => {
-            if (src !== LOGO_SVG) setSrc(LOGO_SVG);
+        <LogoPulseWrap>
+          <LogoImg
+            src={src}
+            alt="ShadowVote"
+            width={120}
+            height={120}
+            decoding="sync"
+            fetchPriority="high"
+            onError={() => {
+              if (src !== LOGO_SVG) setSrc(LOGO_SVG);
+            }}
+          />
+        </LogoPulseWrap>
+        <Label
+          css={{
+            color: isLight ? '$gray500' : '#A1A1AA',
           }}
-        />
-        <Label>{message}</Label>
+        >
+          {message}
+        </Label>
       </LogoFrame>
     </Root>
   );

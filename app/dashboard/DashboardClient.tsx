@@ -1,6 +1,7 @@
 'use client';
 
 import { CreateProposalModal } from '@/components/CreateProposalModal';
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { ProposalCard } from '@/components/ProposalCard';
 import { Body, Caption, H1, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
@@ -87,21 +88,6 @@ const SkeletonCard = styled(motion.div, {
   borderRadius: '$lg',
   background: 'linear-gradient(90deg, $gray100 0%, $gray200 50%, $gray100 100%)',
   backgroundSize: '200% 100%',
-});
-
-const SpinnerWrap = styled('div', {
-  display: 'flex',
-  alignItems: 'center',
-  justifyContent: 'center',
-  minHeight: '240px',
-});
-
-const Spinner = styled(motion.div, {
-  width: '48px',
-  height: '48px',
-  borderRadius: '50%',
-  border: '3px solid $gray200',
-  borderTopColor: '$red400',
 });
 
 const DisconnectPrompt = styled(motion.div, {
@@ -243,16 +229,7 @@ export default function DashboardClient() {
   );
 
   if (wallet.isLoading) {
-    return (
-      <Page initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <SpinnerWrap>
-          <Spinner
-            animate={{ rotate: 360 }}
-            transition={{ repeat: Infinity, duration: 0.9, ease: 'linear' }}
-          />
-        </SpinnerWrap>
-      </Page>
-    );
+    return <LoadingScreen message="Loading wallet…" variant="light" />;
   }
 
   if (!wallet.isConnected || !wallet.unshieldedAddress) {

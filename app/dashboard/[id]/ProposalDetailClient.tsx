@@ -1,5 +1,6 @@
 'use client';
 
+import { LoadingScreen } from '@/components/LoadingScreen';
 import { VoteResults } from '@/components/VoteResults';
 import { Body, Caption, H1, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
@@ -197,13 +198,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   }, [shadow, toast, proposalId]);
 
   if (wallet.isLoading) {
-    return (
-      <Page initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-        <Main>
-          <Body>Loading wallet…</Body>
-        </Main>
-      </Page>
-    );
+    return <LoadingScreen message="Loading wallet…" variant="light" />;
   }
 
   if (!wallet.isConnected || !wallet.unshieldedAddress) {
