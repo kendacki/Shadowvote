@@ -1,31 +1,49 @@
-# Dependencies & build
-node_modules/
-.next/
-dist/
-out/
+# -----------------------------------------------------------------------------
+# Next.js & Node Dependencies
+# -----------------------------------------------------------------------------
+/node_modules
+/.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
 
-# Secrets and local overrides (never commit)
+# -----------------------------------------------------------------------------
+# Next.js Build Output
+# -----------------------------------------------------------------------------
+/.next/
+/out/
+*.tsbuildinfo
+next-env.d.ts
+
+# -----------------------------------------------------------------------------
+# Environment Variables (CRITICAL SECRECY)
+# -----------------------------------------------------------------------------
 .env
-.env.*
+.env*.local
 !.env.example
-*.local
 *.pem
-*.key
-midnight.config.local.json
 
-# Tooling / OS
+# -----------------------------------------------------------------------------
+# Vercel & Hosting
+# -----------------------------------------------------------------------------
+.vercel
+
+# -----------------------------------------------------------------------------
+# Testing & Coverage
+# -----------------------------------------------------------------------------
+/coverage
+
+# -----------------------------------------------------------------------------
+# OS System Files
+# -----------------------------------------------------------------------------
 .DS_Store
 Thumbs.db
 
-# Midnight / deploy artifacts with environment-specific data
+# -----------------------------------------------------------------------------
+# ShadowVote Specific Local State
+# -----------------------------------------------------------------------------
 deployment.json
-
-# Databases & caches (Level / IndexedDB-style stores may contain private state)
-shadowvote-midnight-db/
 shadowvote-db/
-*.ldb
-*.log
-npm-debug.log*
-
-# Optional local helpers that may contain mnemonics
-get-key.local.mjs
+/dist/
