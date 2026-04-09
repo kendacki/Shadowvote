@@ -12,11 +12,7 @@ import {
 import { getAuthorizedVoterLeavesWithDevBypass } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
-import {
-  MOCK_PAST_PROPOSALS,
-  createUserPastProposalSnapshot,
-  type PastProposalRecord,
-} from '@/utils/mockData';
+import { MOCK_PAST_PROPOSALS } from '@/utils/mockData';
 import { classifyVoteFailure, computeVoteNullifier, bytes32ToLowerHex } from '../utils/crypto';
 import {
   buildMerklePathWitness,
@@ -60,6 +56,18 @@ function nullifierSetFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): 
 }
 
 const PENDING_PROPOSAL_IDS_KEY = 'shadowvote.pendingProposalIds.v1';
+const VOTE_CHOICE_KEY = 'shadowvote.proposalVoteChoice.v1';
+
+function persistVoteChoice(proposalId: number, choice: boolean): void {
+  try {
+    const raw = localStorage.getItem(VOTE_CHOICE_KEY);
+    const map: Record<string, 'yes' | 'no'> = raw ? (JSON.parse(raw) as Record<string, 'yes' | 'no'>) : {};
+    map[String(proposalId)] = choice ? 'yes' : 'no';
+    localStorage.setItem(VOTE_CHOICE_KEY, JSON.stringify(map));
+  } catch {
+    /* ignore */
+  }
+}
 
 function readPendingProposalIds(): number[] {
   if (typeof window === 'undefined') return [];
@@ -79,44 +87,6 @@ function readPendingProposalIds(): number[] {
 function writePendingProposalIds(ids: number[]) {
   try {
     localStorage.setItem(PENDING_PROPOSAL_IDS_KEY, JSON.stringify(ids));
-  } catch {
-    /* ignore */
-  }
-}
-
-const USER_FINISHED_PROPOSALS_KEY = 'shadowvote.userFinishedProposals.v1';
-
-function isPastProposalRecord(x: unknown): x is PastProposalRecord {
-  if (!x || typeof x !== 'object') return false;
-  const o = x as Record<string, unknown>;
-  return (
-    typeof o.id === 'string' &&
-    typeof o.title === 'string' &&
-    typeof o.description === 'string' &&
-    typeof o.yesVotes === 'number' &&
-    typeof o.noVotes === 'number' &&
-    typeof o.totalVotes === 'string' &&
-    typeof o.status === 'string' &&
-    typeof o.imageUrl === 'string'
-  );
-}
-
-function readUserFinishedProposals(): PastProposalRecord[] {
-  if (typeof window === 'undefined') return [];
-  try {
-    const raw = localStorage.getItem(USER_FINISHED_PROPOSALS_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(isPastProposalRecord);
-  } catch {
-    return [];
-  }
-}
-
-function writeUserFinishedProposals(rows: PastProposalRecord[]) {
-  try {
-    localStorage.setItem(USER_FINISHED_PROPOSALS_KEY, JSON.stringify(rows));
   } catch {
     /* ignore */
   }
@@ -154,8 +124,6 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
   /** User-added ids before the first on-chain vote materializes in public state. */
   const [pendingProposalIds, setPendingProposalIds] = useState<number[]>([]);
-  /** Locally recorded “finished” rows (mock stats) from {@link CreateProposalModal} + persistence. */
-  const [userFinishedProposals, setUserFinishedProposals] = useState<PastProposalRecord[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -172,10 +140,6 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   useEffect(() => {
     setPendingProposalIds(readPendingProposalIds());
-  }, []);
-
-  useEffect(() => {
-    setUserFinishedProposals(readUserFinishedProposals());
   }, []);
 
   useEffect(() => {
@@ -246,10 +210,8 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     return out;
   }, [proposals, globalProposals]);
 
-  const allPastProposals = useMemo(
-    () => [...userFinishedProposals, ...MOCK_PAST_PROPOSALS],
-    [userFinishedProposals],
-  );
+  /** Static mock cards only; dashboard merges Supabase `Ended` / `Passed` rows separately. */
+  const allPastProposals = useMemo(() => [...MOCK_PAST_PROPOSALS], []);
 
   const applyContractState = useCallback(async (contractState: ContractState) => {
     const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
@@ -266,16 +228,6 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
       if (prev.includes(id)) return prev;
       const next = [...prev, id].sort((a, b) => a - b);
       writePendingProposalIds(next);
-      return next;
-    });
-  }, []);
-
-  const recordUserPastProposalFromModal = useCallback((pid: number, title: string) => {
-    if (!Number.isFinite(pid) || pid < 0 || pid > 0xffffffff) return;
-    const row = createUserPastProposalSnapshot(pid, title);
-    setUserFinishedProposals((prev) => {
-      const next = [row, ...prev];
-      writeUserFinishedProposals(next);
       return next;
     });
   }, []);
@@ -387,7 +339,11 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   );
 
   const castVote = useCallback(
-    async (proposalId: number, onStage?: (stage: VoteTxStage) => void) => {
+    async (
+      proposalId: number,
+      voteYes: boolean,
+      onStage?: (stage: VoteTxStage) => void,
+    ) => {
       setError(null);
       if (!connectedApi) {
         onStage?.('failed');
@@ -425,6 +381,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
         onStage?.('submitting');
         await found.callTx.vote(BigInt(proposalId));
+        persistVoteChoice(proposalId, voteYes);
         onStage?.('confirmed');
         await fetchProposals();
       } catch (e: unknown) {
@@ -447,10 +404,8 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     proposals,
     allProposals,
     fetchGlobalProposals,
-    userFinishedProposals,
     allPastProposals,
     registerPendingProposal,
-    recordUserPastProposalFromModal,
     fetchProposals,
     castVote,
     checkHasVoted,

@@ -13,7 +13,9 @@ import { gradientPrimary, styled } from '@/stitches.config';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+
+const VOTE_CHOICE_STORAGE_KEY = 'shadowvote.proposalVoteChoice.v1';
 
 const Page = styled(motion.div, {
   minHeight: '100vh',
@@ -103,6 +105,13 @@ const Actions = styled('div', {
   flexDirection: 'column',
   gap: '$4',
   alignItems: 'flex-start',
+});
+
+const VoteButtonRow = styled('div', {
+  display: 'flex',
+  flexWrap: 'wrap',
+  gap: '$3',
+  alignItems: 'center',
 });
 
 const VoteCastPill = styled(motion.div, {
@@ -215,12 +224,31 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   const hasVoted = identityReady && shadow.checkHasVoted(String(proposalId));
   const isSubmitting = shadow.isVoting;
 
-  const runVoteWithToast = useCallback(async () => {
-    const cast = shadow?.castVote;
-    if (typeof cast !== 'function') return;
-    const toastId = toast.loading('Preparing', 'Initializing transaction…');
-    await cast(proposalId, (stage) => applyVoteStageToast(toast, toastId, proposalId, stage));
-  }, [shadow, toast, proposalId]);
+  const [recordedChoice, setRecordedChoice] = useState<'yes' | 'no' | null>(null);
+  useEffect(() => {
+    if (!hasVoted) {
+      setRecordedChoice(null);
+      return;
+    }
+    try {
+      const raw = localStorage.getItem(VOTE_CHOICE_STORAGE_KEY);
+      const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      const v = map[String(proposalId)];
+      setRecordedChoice(v === 'yes' || v === 'no' ? v : null);
+    } catch {
+      setRecordedChoice(null);
+    }
+  }, [hasVoted, proposalId]);
+
+  const runVoteWithToast = useCallback(
+    async (voteYes: boolean) => {
+      const cast = shadow?.castVote;
+      if (typeof cast !== 'function') return;
+      const toastId = toast.loading('Preparing', 'Initializing transaction…');
+      await cast(proposalId, voteYes, (stage) => applyVoteStageToast(toast, toastId, proposalId, stage));
+    },
+    [shadow, toast, proposalId],
+  );
 
   if (wallet.isLoading) {
     return <LoadingScreen message="Loading wallet…" variant="light" />;
@@ -311,6 +339,13 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
 
           <VoteResults proposalId={proposalId} tally={tally} totalVotesAllProposals={totalVotesAllProposals} />
 
+          {hasVoted && recordedChoice ? (
+            <Body css={{ fontSize: '$sm', color: '$gray600', fontFamily: '$poppins', margin: 0 }}>
+              Your recorded choice: <strong>{recordedChoice === 'yes' ? 'Yes' : 'No'}</strong> (on-chain tally is total
+              participation; the contract does not split yes/no counts yet).
+            </Body>
+          ) : null}
+
           <Actions>
             <AnimatePresence mode="wait" initial={false}>
               {hasVoted ? (
@@ -334,22 +369,30 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
                   exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  <Button
-                    type="button"
-                    variant="primary"
-                    disabled={!identityReady || isSubmitting}
-                    onClick={() => void runVoteWithToast()}
-                  >
-                    {isSubmitting
-                      ? 'Generating ZK proof — wallet opens next…'
-                      : 'Cast Vote'}
-                  </Button>
+                  <VoteButtonRow>
+                    <Button
+                      type="button"
+                      variant="primary"
+                      disabled={!identityReady || isSubmitting}
+                      onClick={() => void runVoteWithToast(true)}
+                    >
+                      {isSubmitting ? 'Generating ZK proof — wallet opens next…' : 'Vote Yes'}
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      disabled={!identityReady || isSubmitting}
+                      onClick={() => void runVoteWithToast(false)}
+                    >
+                      {isSubmitting ? 'Generating ZK proof — wallet opens next…' : 'Vote No'}
+                    </Button>
+                  </VoteButtonRow>
                 </motion.div>
               )}
             </AnimatePresence>
             <Body css={{ fontSize: '$sm', color: '$gray500', maxWidth: '480px', fontFamily: '$poppins', margin: 0 }}>
-              One anonymous vote per identity per proposal. If you have already voted, this switches to
-              &quot;Vote recorded&quot; when the indexer syncs.
+              One anonymous vote per identity per proposal. Both choices submit the same ZK membership proof; your yes/no
+              preference is stored locally for this browser. The indexer updates the tally after confirmation.
             </Body>
           </Actions>
         </MainMotion>

@@ -10,12 +10,45 @@ import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
 import { useShadowVote, type ProposalView } from '@/hooks/useShadowVote';
-import { useSupabaseSync } from '@/hooks/useSupabaseSync';
+import { useSupabaseSync, type OffChainProposalRow } from '@/hooks/useSupabaseSync';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
+import { MOCK_PAST_PROPOSALS, pickUserHistoryImage, type PastProposalRecord } from '@/utils/mockData';
 import { useCallback, useMemo, useState, type ReactNode } from 'react';
+
+function normalizeLifecycleStatus(s: string | undefined): string {
+  return (s ?? '').trim().toLowerCase();
+}
+
+/** Active grid: Pending First Vote | Active, or no Supabase row (on-chain / pending only). */
+function isActiveLifecycleRow(row: OffChainProposalRow | undefined): boolean {
+  if (row === undefined) return true;
+  const t = normalizeLifecycleStatus(row.status);
+  return t === 'pending first vote' || t === 'active';
+}
+
+/** Past grid: Ended | Passed (incl. legacy copy like "Proposal Passed"). */
+function isPastLifecycleRow(row: OffChainProposalRow): boolean {
+  const t = normalizeLifecycleStatus(row.status);
+  return t === 'ended' || t === 'passed' || t === 'proposal passed';
+}
+
+function offChainRowToPastRecord(row: OffChainProposalRow): PastProposalRecord {
+  const n = Number.parseInt(String(row.id), 10);
+  const seed = Number.isFinite(n) ? n : 0;
+  return {
+    id: `supabase-past-${row.id}`,
+    title: row.title.trim() || `Proposal #${row.id}`,
+    description: row.description?.trim() ?? '',
+    yesVotes: 50,
+    noVotes: 50,
+    totalVotes: '—',
+    status: row.status,
+    imageUrl: pickUserHistoryImage(seed),
+  };
+}
 const PageShell = styled(motion.div, {
   flex: 1,
   display: 'flex',
@@ -185,7 +218,6 @@ export default function DashboardPage() {
 
   const safeProposals = Array.isArray(proposals) ? proposals : [];
   const allProposals = shadowVote?.allProposals ?? safeProposals;
-  const allPastProposals = shadowVote?.allPastProposals ?? [];
 
   const supabaseAsProposalViews = useMemo(() => {
     const out: ProposalView[] = [];
@@ -211,14 +243,31 @@ export default function DashboardPage() {
     return [...byId.values()].sort((a, b) => a.id - b.id);
   }, [allProposals, supabaseAsProposalViews]);
 
+  const statusFilteredActiveProposals = useMemo(() => {
+    return allProposalsUnified.filter((p) => {
+      const row = offChainProposals.find((r) => String(r.id) === String(p.id));
+      return isActiveLifecycleRow(row);
+    });
+  }, [allProposalsUnified, offChainProposals]);
+
+  const supabasePastRecords = useMemo(
+    () => offChainProposals.filter(isPastLifecycleRow).map(offChainRowToPastRecord),
+    [offChainProposals],
+  );
+
+  const allPastForGrid = useMemo(
+    () => [...supabasePastRecords, ...MOCK_PAST_PROPOSALS],
+    [supabasePastRecords],
+  );
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const searchNormalized = searchQuery.trim().toLowerCase();
 
   const filteredActiveProposals = useMemo(() => {
-    if (!searchNormalized) return allProposalsUnified;
-    return allProposalsUnified.filter((p) => {
+    if (!searchNormalized) return statusFilteredActiveProposals;
+    return statusFilteredActiveProposals.filter((p) => {
       let titleLs = '';
       try {
         const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
@@ -228,24 +277,36 @@ export default function DashboardPage() {
       } catch {
         /* ignore */
       }
-      const sbTitle =
-        offChainProposals.find((r) => String(r.id) === String(p.id))?.title?.toLowerCase() ?? '';
+      const matchRow = offChainProposals.find((r) => String(r.id) === String(p.id));
+      const sbTitle = matchRow?.title?.toLowerCase() ?? '';
+      const sbDesc = matchRow?.description?.toLowerCase() ?? '';
+      let descLs = '';
+      try {
+        const dr = localStorage.getItem('shadowvote.proposalDescriptions.v1');
+        const dm = dr ? (JSON.parse(dr) as Record<string, string>) : {};
+        const d = dm[String(p.id)];
+        descLs = typeof d === 'string' ? d.toLowerCase() : '';
+      } catch {
+        /* ignore */
+      }
       return (
         String(p.id).toLowerCase().includes(searchNormalized) ||
         titleLs.includes(searchNormalized) ||
-        sbTitle.includes(searchNormalized)
+        sbTitle.includes(searchNormalized) ||
+        sbDesc.includes(searchNormalized) ||
+        descLs.includes(searchNormalized)
       );
     });
-  }, [allProposalsUnified, offChainProposals, searchNormalized, searchQuery]);
+  }, [statusFilteredActiveProposals, offChainProposals, searchNormalized, searchQuery]);
 
   const filteredPastProposals = useMemo(() => {
-    if (!searchNormalized) return allPastProposals;
-    return allPastProposals.filter(
+    if (!searchNormalized) return allPastForGrid;
+    return allPastForGrid.filter(
       (p) =>
         p.title.toLowerCase().includes(searchNormalized) ||
         p.id.toLowerCase().includes(searchNormalized),
     );
-  }, [allPastProposals, searchNormalized, searchQuery]);
+  }, [allPastForGrid, searchNormalized, searchQuery]);
 
   const showSearchEmpty =
     searchNormalized.length > 0 &&
@@ -255,23 +316,26 @@ export default function DashboardPage() {
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
 
-  const recordPast = shadowVote?.recordUserPastProposalFromModal;
+  const registerPending = shadowVote?.registerPendingProposal;
 
   const handleCreateProposal = useCallback(
-    ({ proposalId, title }: { proposalId: number; title: string }) => {
-      if (title) {
-        try {
-          const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
-          const map: Record<string, string> = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-          map[String(proposalId)] = title;
-          localStorage.setItem('shadowvote.proposalTitles.v1', JSON.stringify(map));
-        } catch {
-          /* ignore */
-        }
+    ({ proposalId, title, description }: { proposalId: number; title: string; description: string }) => {
+      registerPending?.(proposalId);
+      try {
+        const titleRaw = localStorage.getItem('shadowvote.proposalTitles.v1');
+        const titleMap: Record<string, string> = titleRaw ? (JSON.parse(titleRaw) as Record<string, string>) : {};
+        if (title.trim()) titleMap[String(proposalId)] = title.trim();
+        localStorage.setItem('shadowvote.proposalTitles.v1', JSON.stringify(titleMap));
+
+        const descRaw = localStorage.getItem('shadowvote.proposalDescriptions.v1');
+        const descMap: Record<string, string> = descRaw ? (JSON.parse(descRaw) as Record<string, string>) : {};
+        if (description.trim()) descMap[String(proposalId)] = description.trim();
+        localStorage.setItem('shadowvote.proposalDescriptions.v1', JSON.stringify(descMap));
+      } catch {
+        /* ignore */
       }
-      recordPast?.(proposalId, title);
     },
-    [recordPast],
+    [registerPending],
   );
 
   if (wallet?.isLoading) {
@@ -308,7 +372,7 @@ export default function DashboardPage() {
   }
 
   let proposalBody: ReactNode;
-  if (isLoading && allProposalsUnified.length === 0 && !searchNormalized) {
+  if (isLoading && statusFilteredActiveProposals.length === 0 && !searchNormalized) {
     proposalBody = <LoadingSkeleton />;
   } else if (shadowError) {
     proposalBody = (
@@ -333,7 +397,7 @@ export default function DashboardPage() {
         No proposals match your search.
       </Body>
     );
-  } else if (allProposalsUnified.length === 0 && !searchNormalized) {
+  } else if (statusFilteredActiveProposals.length === 0 && !searchNormalized) {
     proposalBody = (
       <EmptyState
         onOpenModal={() => setIsModalOpen(true)}
@@ -352,7 +416,7 @@ export default function DashboardPage() {
   } else {
     proposalBody = (
       <ProposalGrid>
-        {allProposalsUnified.map((p, i) => (
+        {statusFilteredActiveProposals.map((p, i) => (
           <ProposalCard key={p.id} proposalId={p.id} tally={p.tally} index={i} />
         ))}
       </ProposalGrid>
@@ -416,7 +480,7 @@ export default function DashboardPage() {
             <PastGrid>
               {showSearchEmpty
                 ? null
-                : (searchNormalized ? filteredPastProposals : allPastProposals).map((p, i) => (
+                : (searchNormalized ? filteredPastProposals : allPastForGrid).map((p, i) => (
                     <PastProposalCard key={p.id} proposal={p} index={i} />
                   ))}
             </PastGrid>

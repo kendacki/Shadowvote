@@ -23,7 +23,7 @@ const USER_HISTORY_IMAGES = [
   '/past-proposals/card-protocol-treasury.png',
 ] as const;
 
-function pickUserHistoryImage(seed: number): string {
+export function pickUserHistoryImage(seed: number): string {
   const idx = Math.abs(seed) % USER_HISTORY_IMAGES.length;
   return USER_HISTORY_IMAGES[idx]!;
 }

@@ -15,6 +15,7 @@ import {
 export type OffChainProposalRow = {
   id: string;
   title: string;
+  description?: string;
   status: string;
   created_at?: string;
 };
@@ -23,6 +24,7 @@ export type PublishProposalInput = {
   /** Off-chain row key; if omitted or blank, a UUID is generated before insert. */
   id?: string;
   title: string;
+  description?: string;
   status: string;
 };
 
@@ -33,9 +35,10 @@ function rowFromRecord(record: Record<string, unknown>): OffChainProposalRow | n
   if (typeof id !== 'string' || typeof title !== 'string' || typeof status !== 'string') {
     return null;
   }
+  const description = typeof record.description === 'string' ? record.description : undefined;
   const created_at =
     typeof record.created_at === 'string' ? record.created_at : undefined;
-  return { id, title, status, ...(created_at ? { created_at } : {}) };
+  return { id, title, status, ...(description !== undefined ? { description } : {}), ...(created_at ? { created_at } : {}) };
 }
 
 function mergeRows(prev: OffChainProposalRow[], next: OffChainProposalRow): OffChainProposalRow[] {
@@ -127,12 +130,14 @@ export function SupabaseSyncProvider({ children }: { children: ReactNode }) {
       proposal.title != null && String(proposal.title).trim() !== ''
         ? String(proposal.title).trim()
         : 'Untitled Proposal';
+    const description =
+      proposal.description != null ? String(proposal.description).trim() : '';
     const status =
       proposal.status != null && String(proposal.status).trim() !== ''
         ? String(proposal.status).trim()
         : 'Pending First Vote';
 
-    const rowPayload = { id, title, status };
+    const rowPayload = { id, title, description, status };
     console.log('[ShadowVote] publishProposal: attempting insert', rowPayload);
 
     const { data, error } = await supabase.from('proposals').insert([rowPayload]).select('*').maybeSingle();

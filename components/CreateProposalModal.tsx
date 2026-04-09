@@ -60,6 +60,24 @@ const Input = styled('input', {
   },
 });
 
+const TextArea = styled('textarea', {
+  fontFamily: '$poppins',
+  fontSize: '$md',
+  padding: '$3 $4',
+  borderRadius: '$md',
+  border: '1px solid $gray200',
+  outline: 'none',
+  color: '$gray600',
+  minHeight: '88px',
+  resize: 'vertical' as const,
+  boxSizing: 'border-box',
+  width: '100%',
+  '&:focus': {
+    borderColor: '$red400',
+    boxShadow: '0 0 0 3px rgba(239, 68, 68, 0.15)',
+  },
+});
+
 const Actions = styled('div', {
   display: 'flex',
   flexDirection: 'column-reverse',
@@ -80,7 +98,7 @@ export type CreateProposalModalProps = {
   open?: boolean;
   onClose: () => void;
   /** Runs after a successful Supabase insert (localStorage / UI side effects only). */
-  onSubmit: (payload: { title: string; proposalId: number }) => void | Promise<void>;
+  onSubmit: (payload: { title: string; description: string; proposalId: number }) => void | Promise<void>;
   /** Legacy: wallet voting state; primary submit uses internal Supabase save state. */
   isSubmitting?: boolean;
 };
@@ -97,8 +115,10 @@ export function CreateProposalModal({
   const { publishProposal, isConfigured } = useSupabaseSync();
   const headingId = useId();
   const proposalTitleInputId = useId();
+  const descriptionFieldId = useId();
   const idFieldId = useId();
   const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
   const [proposalIdRaw, setProposalIdRaw] = useState('');
   const [isSavingOffChain, setIsSavingOffChain] = useState(false);
   /** Portals attach after mount so SSR/hydration never targets a missing `document.body`. */
@@ -111,6 +131,7 @@ export function CreateProposalModal({
   useEffect(() => {
     if (!visible) {
       setTitle('');
+      setDescription('');
       setProposalIdRaw('');
       setIsSavingOffChain(false);
     }
@@ -129,9 +150,11 @@ export function CreateProposalModal({
     }
     const trimmedTitle = title.trim();
     const displayTitle = trimmedTitle || `Proposal #${n}`;
+    const trimmedDescription = description.trim();
     console.log('1. Attempting to save proposal:', {
       id: String(n),
       title: displayTitle,
+      description: trimmedDescription,
       status: 'Pending First Vote',
     });
 
@@ -140,11 +163,12 @@ export function CreateProposalModal({
       await publishProposal({
         id: String(n),
         title: displayTitle,
+        description: trimmedDescription,
         status: 'Pending First Vote',
       });
       console.log('2. Successfully saved to Supabase!');
       toast.success('Proposal saved to off-chain registry!');
-      await Promise.resolve(onSubmit({ title: trimmedTitle, proposalId: n }));
+      await Promise.resolve(onSubmit({ title: trimmedTitle, description: trimmedDescription, proposalId: n }));
       onClose();
     } catch (e: unknown) {
       console.error('CAUGHT EXCEPTION:', e);
@@ -166,7 +190,7 @@ export function CreateProposalModal({
     } finally {
       setIsSavingOffChain(false);
     }
-  }, [isConfigured, onClose, onSubmit, proposalIdRaw, publishProposal, title, toast]);
+  }, [description, isConfigured, onClose, onSubmit, proposalIdRaw, publishProposal, title, toast]);
 
   const validId =
     proposalIdRaw.trim() !== '' &&
@@ -226,6 +250,17 @@ export function CreateProposalModal({
                 placeholder="e.g. Treasury allocation Q2"
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
+                autoComplete="off"
+              />
+            </Field>
+
+            <Field>
+              <Label htmlFor={descriptionFieldId}>What are we voting on?</Label>
+              <TextArea
+                id={descriptionFieldId}
+                placeholder="Short description for the registry and dashboard search (optional)."
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
                 autoComplete="off"
               />
             </Field>
