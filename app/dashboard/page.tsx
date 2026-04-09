@@ -1,5 +1,6 @@
 "use client";
 
+import { AppRouteChrome } from '@/components/AppRouteChrome';
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -253,8 +254,8 @@ export default function DashboardPage() {
           <DisconnectPanel initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <PageTitle css={{ marginBottom: '$4' }}>Connect your wallet</PageTitle>
             <Body css={{ marginBottom: '$6', fontFamily: '$poppins' }}>
-              Use <strong>Connect wallet</strong> in the top bar (Lace on Preprod), then return here to manage
-              proposals.
+              Go <strong>home</strong>, tap <strong>Connect</strong> (Lace on Preprod), then <strong>Open app</strong> to
+              reach the dashboard.
             </Body>
             <Button type="button" variant="primary" onClick={() => router.push('/')}>
               Return home
@@ -305,6 +306,7 @@ export default function DashboardPage() {
   return (
     <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
       <PageContainer>
+        <AppRouteChrome />
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

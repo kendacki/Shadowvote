@@ -1,5 +1,6 @@
 'use client';
 
+import { AppRouteChrome } from '@/components/AppRouteChrome';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { PageContainer } from '@/components/PageContainer';
 import { VoteResults } from '@/components/VoteResults';
@@ -232,7 +233,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
           <ErrorPanel initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
             <H1 css={{ marginTop: 0, marginBottom: '$4', fontFamily: '$poppins' }}>Connect your wallet</H1>
             <Body css={{ marginBottom: '$6', color: '$gray500', fontFamily: '$poppins' }}>
-              Connect Lace from the top bar, then open this proposal again.
+              Connect Lace from the home page, then open this proposal again.
             </Body>
             <Button type="button" variant="primary" onClick={() => router.push('/')}>
               Return home
@@ -246,6 +247,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   return (
     <Page initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
       <PageContainer>
+        <AppRouteChrome />
         <MainMotion
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

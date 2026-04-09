@@ -31,9 +31,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body style={{ fontFamily: 'var(--font-poppins), Poppins, system-ui, sans-serif' }}>
         <NetworkBanner />
-        {/*
-          TopNav + main content offset live in ClientRoot so Midnight wallet context wraps the nav.
-        */}
         <ClientRoot>{children}</ClientRoot>
       </body>
     </html>
