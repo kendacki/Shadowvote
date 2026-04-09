@@ -150,7 +150,7 @@ npm start
 6. **ZK assets** — Run `npm run zk:public` in CI before build, or host artifacts on a CDN and set `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` to that base URL.
 7. **Mainnet** — Set `NEXT_PUBLIC_MIDNIGHT_NETWORK=mainnet` (or equivalent id) only when you intentionally ship prod; the **Network** banner hides on mainnet.
 
-## Project layout (high level)
+## Project layout
 
 ```
 app/              App Router pages (landing, dashboard, proposal detail)
