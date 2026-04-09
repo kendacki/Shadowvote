@@ -1,6 +1,5 @@
 'use client';
 
-import { AppRouteChrome } from '@/components/AppRouteChrome';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { PageContainer } from '@/components/PageContainer';
 import { VoteResults } from '@/components/VoteResults';
@@ -247,7 +246,6 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   return (
     <Page initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
       <PageContainer>
-        <AppRouteChrome />
         <MainMotion
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}

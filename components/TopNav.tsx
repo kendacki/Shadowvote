@@ -11,21 +11,21 @@ const LOGO_PREFERRED = '/shadowvote-logo.png';
 const LOGO_FALLBACK = '/shadowvote-emblem.svg';
 
 const Bar = styled('header', {
-  position: 'fixed',
+  position: 'sticky',
   top: 0,
-  left: 0,
   width: '100%',
-  height: '80px',
   zIndex: 50,
+  minHeight: '80px',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'space-between',
   gap: '$4',
-  paddingLeft: 'max(1.5rem, env(safe-area-inset-left, 0px))',
-  paddingRight: 'max(1.5rem, env(safe-area-inset-right, 0px))',
-  backgroundColor: '#FFFFFF',
+  paddingLeft: 'max(1.25rem, env(safe-area-inset-left, 0px))',
+  paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
+  paddingTop: '0.75rem',
+  paddingBottom: '0.75rem',
+  background: '#FFFFFF',
   borderBottom: '1px solid #E5E7EB',
-  boxShadow: '0 1px 3px rgba(0, 0, 0, 0.06)',
   boxSizing: 'border-box',
 });
 

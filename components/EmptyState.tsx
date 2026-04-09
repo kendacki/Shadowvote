@@ -50,12 +50,12 @@ const Subtext = styled('p', {
 });
 
 export type EmptyStateProps = {
-  onCreateClick: () => void;
+  onOpenModal: () => void;
   disabled?: boolean;
 };
 
 /** Empty proposals ledger — premium panel with gradient primary CTA. */
-export function EmptyState({ onCreateClick, disabled }: EmptyStateProps) {
+export function EmptyState({ onOpenModal, disabled }: EmptyStateProps) {
   return (
     <Root
       initial={{ opacity: 0, y: 10 }}
@@ -74,7 +74,7 @@ export function EmptyState({ onCreateClick, disabled }: EmptyStateProps) {
       <Subtext>
         The ledger is currently empty. Be the first to initiate a governance vote.
       </Subtext>
-      <Button type="button" variant="primary" fullWidth disabled={disabled} onClick={onCreateClick}>
+      <Button type="button" variant="primary" fullWidth disabled={disabled} onClick={onOpenModal}>
         Create the first proposal
       </Button>
     </Root>

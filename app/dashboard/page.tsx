@@ -4,8 +4,7 @@ import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ProposalCard } from '@/components/ProposalCard';
-import { TopNav } from '@/components/TopNav';
-import { Body, H1, H2 } from '@/components/Typography';
+import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
 import { useToast } from '@/contexts/ToastContext';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
@@ -21,12 +20,12 @@ const PageShell = styled(motion.div, {
   backgroundColor: '#FFFFFF',
 });
 
+/** Standard flow — no fixed offsets; global TopNav + banner sit above in layout. */
 const DashboardContainer = styled('div', {
   width: '100%',
   maxWidth: '1200px',
   margin: '0 auto',
-  marginTop: '100px',
-  padding: '2rem',
+  padding: '40px 20px',
   boxSizing: 'border-box',
 });
 
@@ -37,6 +36,7 @@ const Hero = styled('div', {
   justifyContent: 'space-between',
   gap: '$4',
   marginBottom: '$8',
+  paddingTop: '$2',
 });
 
 const TitleBlock = styled('div', {
@@ -250,7 +250,6 @@ export default function DashboardPage() {
   if (wallet?.isLoading) {
     return (
       <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <TopNav />
         <LoadingScreen message="Loading wallet…" variant="light" />
       </PageShell>
     );
@@ -259,13 +258,12 @@ export default function DashboardPage() {
   if (!wallet?.isConnected || !wallet?.unshieldedAddress) {
     return (
       <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <TopNav />
         <DashboardContainer>
           <DisconnectPanel initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <PageTitle css={{ marginBottom: '$4' }}>Connect your wallet</PageTitle>
             <Body css={{ marginBottom: '$6', fontFamily: '$poppins' }}>
-              Use <strong>Connect wallet</strong> above (Lace on Preprod), or go <strong>home</strong> and use{' '}
-              <strong>Connect</strong> → <strong>Open app</strong>.
+              Use <strong>Connect wallet</strong> in the navigation bar (Lace on Preprod), or go <strong>home</strong>{' '}
+              and use <strong>Connect</strong> → <strong>Open app</strong>.
             </Body>
             <Button type="button" variant="primary" onClick={() => router.push('/')}>
               Return home
@@ -306,7 +304,7 @@ export default function DashboardPage() {
   } else if (safeProposals.length === 0) {
     proposalBody = (
       <EmptyState
-        onCreateClick={() => setIsModalOpen(true)}
+        onOpenModal={() => setIsModalOpen(true)}
         disabled={!identityReady || isVoting}
       />
     );
@@ -322,7 +320,6 @@ export default function DashboardPage() {
 
   return (
     <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-      <TopNav />
       <DashboardContainer>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -334,7 +331,7 @@ export default function DashboardPage() {
               <PageTitle>Governance Dashboard</PageTitle>
               <Subline>
                 {identityReady
-                  ? 'Voter identity ready — create or open a proposal below.'
+                  ? 'Voter identity ready below — create or open a proposal.'
                   : 'Preparing secure voter identity…'}
               </Subline>
             </TitleBlock>
