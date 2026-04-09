@@ -218,7 +218,9 @@ export default function DashboardPage() {
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null);
+  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null, {
+    unshieldedAddress: wallet.unshieldedAddress,
+  });
   const { offChainProposals } = useSupabaseSync();
 
   const proposals = shadowVote?.proposals;

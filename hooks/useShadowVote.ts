@@ -9,12 +9,17 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
-import { collectLeavesForRegisteredVotersRootSync } from '@/lib/voterLeavesSync';
+import {
+  collectLeavesForRegisteredVotersRootSync,
+  fetchLeavesFromRegisteredVotersTable,
+  isWalletRegisteredForEpoch,
+} from '@/lib/voterLeavesSync';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { loadCompiledShadowVoteAdminContract } from '@/lib/loadCompiledShadowVoteAdmin';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
 import { MOCK_PAST_PROPOSALS } from '@/utils/mockData';
+import { supabase } from '@/utils/supabase';
 import { assertMinGovernanceBalance } from '@/utils/tNightGate';
 import { classifyVoteFailure, computeVoteNullifier, bytes32ToLowerHex } from '../utils/crypto';
 import {
@@ -121,10 +126,30 @@ async function ledgerFromContractState(contractState: ContractState): Promise<{
   };
 }
 
+async function readChainVoterRootField(contractState: ContractState): Promise<bigint | null> {
+  try {
+    const mod: ContractMod = await import('@shadowvote/contract');
+    const ledgerView = mod.ledger(contractStateArgForLedgerView(contractState) as unknown as StateValue);
+    return ledgerView.voterRoot.field;
+  } catch {
+    return null;
+  }
+}
+
+/** Optional wallet surface for epoch / Supabase gating (e.g. unshielded bech32). */
+export type ShadowVoteWalletContext = {
+  unshieldedAddress: string | null;
+};
+
 /**
  * @param voterSecret - 32-byte persistent secret from {@link useVoterIdentity}; required for witness injection.
+ * @param walletCtx - When set, enables Supabase epoch sync and “awaiting admin” gating for registered voters.
  */
-export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Uint8Array | null) {
+export function useShadowVote(
+  connectedApi: ConnectedAPI | null,
+  voterSecret: Uint8Array | null,
+  walletCtx?: ShadowVoteWalletContext | null,
+) {
   /** Ledger-derived proposals only (map entries). */
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
   /** User-added ids before the first on-chain vote materializes in public state. */
@@ -132,6 +157,15 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [isSyncingRegistry, setIsSyncingRegistry] = useState(false);
+  const [chainVoterRootField, setChainVoterRootField] = useState<bigint | null>(null);
+  /** False when rebuilt Supabase Merkle root differs from on-chain `voterRoot`. */
+  const [isEpochSynced, setIsEpochSynced] = useState(true);
+  /**
+   * True when this wallet is in `registered_voters`, the epoch is not synced on-chain,
+   * and the user is not covered by the legacy `voter-registry.json` tree that still matches the chain.
+   */
+  const [isAwaitingAdminEpochSync, setIsAwaitingAdminEpochSync] = useState(false);
+  const [epochSyncLoading, setEpochSyncLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   /** Bumps when on-chain nullifier set updates (drives `checkHasVoted` re-renders). */
@@ -180,6 +214,10 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   useEffect(() => {
     if (!connectedApi) {
+      setChainVoterRootField(null);
+      setIsEpochSynced(true);
+      setIsAwaitingAdminEpochSync(false);
+      setEpochSyncLoading(false);
       setGlobalProposals([]);
       return;
     }
@@ -223,6 +261,8 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
     setChainProposals(next);
     nullifiersRef.current = nextNulls;
+    const rootField = await readChainVoterRootField(contractState);
+    setChainVoterRootField(rootField);
     setNullifierEpoch((e) => e + 1);
     setSyncError(null);
   }, []);
@@ -298,6 +338,72 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
       if (interval !== undefined) clearInterval(interval);
     };
   }, [connectedApi, applyContractState]);
+
+  const checkEpochSync = useCallback(async () => {
+    if (!connectedApi || chainVoterRootField === null) {
+      return;
+    }
+    if (!supabase) {
+      setIsEpochSynced(true);
+      setIsAwaitingAdminEpochSync(false);
+      return;
+    }
+    setEpochSyncLoading(true);
+    try {
+      const leavesMerged = await collectLeavesForRegisteredVotersRootSync(null);
+      const rootMerged = computeVoterRegistryRootField(leavesMerged);
+      let dbOnlyRoot: bigint | null = null;
+      try {
+        const dbLeaves = await fetchLeavesFromRegisteredVotersTable();
+        if (dbLeaves.length > 0) {
+          dbOnlyRoot = computeVoterRegistryRootField(dbLeaves);
+        }
+      } catch {
+        dbOnlyRoot = null;
+      }
+      const synced =
+        rootMerged === chainVoterRootField ||
+        (dbOnlyRoot !== null && dbOnlyRoot === chainVoterRootField);
+      setIsEpochSynced(synced);
+
+      const addr = walletCtx?.unshieldedAddress?.trim() ?? '';
+      let inSupabase = false;
+      if (addr) {
+        inSupabase = await isWalletRegisteredForEpoch(addr);
+      }
+
+      let legacyJsonMatchesChain = false;
+      if (voterSecret != null && voterSecret.length === 32) {
+        try {
+          const jsonLeaves = getAuthorizedVoterLeaves();
+          const jsonRoot = computeVoterRegistryRootField(jsonLeaves);
+          if (jsonRoot === chainVoterRootField) {
+            const myLeaf = computeVoterLeafHash(voterSecret);
+            buildMerklePathWitness(myLeaf, jsonLeaves);
+            legacyJsonMatchesChain = true;
+          }
+        } catch {
+          legacyJsonMatchesChain = false;
+        }
+      }
+
+      const awaiting = !synced && inSupabase && !legacyJsonMatchesChain;
+      setIsAwaitingAdminEpochSync(awaiting);
+    } catch (e: unknown) {
+      console.warn('[ShadowVote] checkEpochSync failed', e);
+      setIsEpochSynced(true);
+      setIsAwaitingAdminEpochSync(false);
+    } finally {
+      setEpochSyncLoading(false);
+    }
+  }, [connectedApi, chainVoterRootField, voterSecret, walletCtx?.unshieldedAddress]);
+
+  useEffect(() => {
+    if (!connectedApi || chainVoterRootField === null) {
+      return;
+    }
+    void checkEpochSync();
+  }, [connectedApi, chainVoterRootField, checkEpochSync]);
 
   const fetchProposals = useCallback(async (): Promise<ProposalView[]> => {
     setError(null);
@@ -532,6 +638,10 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     isLoadingProposals,
     isVoting,
     isSyncingRegistry,
+    isEpochSynced,
+    isAwaitingAdminEpochSync,
+    epochSyncLoading,
+    checkEpochSync,
     error,
     syncError,
     clearError: () => setError(null),

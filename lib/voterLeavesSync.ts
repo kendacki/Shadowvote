@@ -36,7 +36,7 @@ function parseEnvAdminFallbackLeaf(): Uint8Array | null {
 }
 
 /**
- * Loads all `voter_leaf` values from `public.registered_voters` (Supabase).
+ * Deterministic order: `wallet_address` ascending (add optional `created_at` in Supabase for registration order).
  */
 export async function fetchLeavesFromRegisteredVotersTable(): Promise<Uint8Array[]> {
   const client = supabase;
@@ -44,7 +44,10 @@ export async function fetchLeavesFromRegisteredVotersTable(): Promise<Uint8Array
     throw new Error('Supabase is not configured (set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY).');
   }
 
-  const { data, error } = await client.from('registered_voters').select('voter_leaf');
+  const { data, error } = await client
+    .from('registered_voters')
+    .select('voter_leaf, wallet_address')
+    .order('wallet_address', { ascending: true });
   if (error) {
     throw new Error(`registered_voters: ${error.message}`);
   }
@@ -71,14 +74,32 @@ export async function fetchLeavesFromRegisteredVotersTable(): Promise<Uint8Array
 }
 
 /**
- * Admin root sync: Merkle leaves from `registered_voters` only, plus the admin credential leaf
- * (local voter secret or `NEXT_PUBLIC_ADMIN_VOTER_LEAF_HEX`) so the operator can vote after sync
- * without having inserted their own row yet.
+ * Whether `registered_voters` contains a row for this Lace unshielded address.
+ */
+export async function isWalletRegisteredForEpoch(unshieldedAddress: string): Promise<boolean> {
+  const client = supabase;
+  if (!client || !unshieldedAddress.trim()) return false;
+  const addr = unshieldedAddress.trim();
+  const { data, error } = await client
+    .from('registered_voters')
+    .select('wallet_address')
+    .eq('wallet_address', addr)
+    .limit(1);
+  if (error) {
+    console.warn('[voterLeavesSync] isWalletRegisteredForEpoch:', error.message);
+    return false;
+  }
+  return Array.isArray(data) && data.length > 0;
+}
+
+/**
+ * Admin root sync: Merkle leaves from `registered_voters` (ordered), plus admin leaf(es) not yet in the list.
  */
 export async function collectLeavesForRegisteredVotersRootSync(
   adminVoterLeaf: Uint8Array | null,
 ): Promise<Uint8Array[]> {
-  let merged = mergeUniqueLeaves(await fetchLeavesFromRegisteredVotersTable());
+  const ordered = await fetchLeavesFromRegisteredVotersTable();
+  const merged = [...ordered];
 
   const envAdminLeaf = parseEnvAdminFallbackLeaf();
   const adminCandidates = [adminVoterLeaf, envAdminLeaf].filter(
@@ -87,9 +108,9 @@ export async function collectLeavesForRegisteredVotersRootSync(
 
   for (const leaf of adminCandidates) {
     if (!merged.some((x) => bytesEqual(x, leaf))) {
-      merged = mergeUniqueLeaves([...merged, leaf]);
+      merged.push(leaf);
     }
   }
 
-  return merged;
+  return mergeUniqueLeaves(merged);
 }
