@@ -65,6 +65,18 @@ function nullifierSetFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): 
   return set;
 }
 
+/** Stable fingerprint of public ledger view — skip React updates when the indexer repeats the same snapshot. */
+function ledgerSnapshotDigest(
+  proposals: ProposalView[],
+  nullifiers: Set<string>,
+  rootField: bigint | null,
+): string {
+  const p = proposals.map((x) => `${x.id}:${x.tally}`).join('\u001f');
+  const n = [...nullifiers].sort().join('\u001f');
+  const r = rootField === null ? '' : String(rootField);
+  return `${p}\u001e${n}\u001e${r}`;
+}
+
 const PENDING_PROPOSAL_IDS_KEY = 'shadowvote.pendingProposalIds.v1';
 const VOTE_CHOICE_KEY = 'shadowvote.proposalVoteChoice.v1';
 
@@ -150,10 +162,6 @@ export function useShadowVote(
   voterSecret: Uint8Array | null,
   walletCtx?: ShadowVoteWalletContext | null,
 ) {
-  if (process.env.NODE_ENV !== 'production') {
-    console.count('🚨 useShadowVote Hook Render');
-  }
-
   /** Ledger-derived proposals only (map entries). */
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
   /** User-added ids before the first on-chain vote materializes in public state. */
@@ -177,6 +185,10 @@ export function useShadowVote(
   const nullifiersRef = useRef<Set<string>>(new Set());
   const providersRef = useRef<Awaited<ReturnType<typeof createShadowVoteProviders>> | null>(null);
   const chainProposalsRef = useRef<ProposalView[]>([]);
+  /** Invalidate in-flight `applyContractState` work after reconnect / unmount; drop stale async results. */
+  const applyLedgerGenerationRef = useRef(0);
+  /** Last applied public snapshot — avoid re-rendering on duplicate indexer emissions. */
+  const lastLedgerDigestRef = useRef<string | null>(null);
   /** Ref mirrors for epoch sync — avoids unstable `useCallback` deps that retrigger effects every render. */
   const connectedApiRef = useRef<ConnectedAPI | null>(connectedApi);
   const chainVoterRootFieldRef = useRef<bigint | null>(chainVoterRootField);
@@ -234,6 +246,8 @@ export function useShadowVote(
 
   useEffect(() => {
     if (!connectedApi) {
+      applyLedgerGenerationRef.current += 1;
+      lastLedgerDigestRef.current = null;
       setChainVoterRootField(null);
       setIsEpochSynced(true);
       setIsAwaitingAdminEpochSync(false);
@@ -278,13 +292,23 @@ export function useShadowVote(
   const allPastProposals = useMemo(() => [...MOCK_PAST_PROPOSALS], []);
 
   const applyContractState = useCallback(async (contractState: ContractState) => {
+    const gen = ++applyLedgerGenerationRef.current;
     const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
+    const rootField = await readChainVoterRootField(contractState);
+    if (gen !== applyLedgerGenerationRef.current) return;
+
+    setSyncError(null);
+
+    const digest = ledgerSnapshotDigest(next, nextNulls, rootField);
+    if (digest === lastLedgerDigestRef.current) {
+      return;
+    }
+    lastLedgerDigestRef.current = digest;
+
     setChainProposals(next);
     nullifiersRef.current = nextNulls;
-    const rootField = await readChainVoterRootField(contractState);
     setChainVoterRootField(rootField);
     setNullifierEpoch((e) => e + 1);
-    setSyncError(null);
   }, []);
 
   const registerPendingProposal = useCallback((id: number) => {
@@ -312,6 +336,7 @@ export function useShadowVote(
 
     const run = async () => {
       try {
+        lastLedgerDigestRef.current = null;
         const { publicDataProvider } = await createShadowVotePublicDataProvider(connectedApi);
         if (cancelled) return;
 
@@ -354,6 +379,7 @@ export function useShadowVote(
 
     return () => {
       cancelled = true;
+      applyLedgerGenerationRef.current += 1;
       sub?.unsubscribe();
       if (interval !== undefined) clearInterval(interval);
     };
@@ -447,6 +473,7 @@ export function useShadowVote(
   const fetchProposals = useCallback(async (): Promise<ProposalView[]> => {
     setError(null);
     if (!connectedApi) {
+      lastLedgerDigestRef.current = null;
       setChainProposals([]);
       nullifiersRef.current = new Set();
       setNullifierEpoch((e) => e + 1);

@@ -211,10 +211,6 @@ function LoadingSkeleton() {
 }
 
 export default function DashboardPage() {
-  if (process.env.NODE_ENV !== 'production') {
-    console.count('🚨 Dashboard Component Render');
-  }
-
   const router = useRouter();
   const wallet = useMidnightWallet();
   const api = wallet.isConnected ? wallet.getConnectedApi() : null;
