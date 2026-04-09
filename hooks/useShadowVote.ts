@@ -106,7 +106,12 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   /** Live indexer sync: WebSocket stream + 12s polling fallback. */
   useEffect(() => {
-    if (!connectedApi) return;
+    if (!connectedApi) {
+      setIsLoadingProposals(false);
+      return;
+    }
+    /** True until first pull finishes — avoids flashing “empty” while providers/indexer initialize. */
+    setIsLoadingProposals(true);
     let sub: Subscription | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
     let cancelled = false;
@@ -126,7 +131,6 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
           }
         };
 
-        setIsLoadingProposals(true);
         try {
           await pull();
         } finally {
