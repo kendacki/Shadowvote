@@ -6,11 +6,37 @@ Private, Sybil-resistant governance on **Midnight**: prove voter eligibility in 
 
 - **ZK voting** — Compact contract (`contracts/shadowvote.compact`) with local proof generation via Midnight JS and your configured ZK artifacts.
 - **Merkle membership** — Depth-20 voter tree using Midnight `persistentHash` / `transientHash` semantics (`utils/merkle.ts`); constructor `voterRoot` must match the deployed registry.
-- **Sybil resistance** — Per-(secret, proposal) nullifiers on the public ledger; the app computes nullifiers locally and surfaces **Vote cast** when your nullifier appears (`utils/crypto.ts`, Phase 5).
+- **Sybil resistance** — Per-(secret, proposal) nullifiers on the public ledger; the app computes nullifiers locally and surfaces **Vote cast** when your nullifier appears (`utils/crypto.ts`).
 - **Live sync** — Contract state stream (RxJS) plus polling fallback in `useShadowVote` so tallies and nullifier sets stay current.
 - **Network awareness** — Amber banner on non-mainnet builds (`components/NetworkBanner.tsx`, `config/network.ts`).
 - **Polished UX** — [Stitches](https://stitches.dev/) design tokens, [Framer Motion](https://www.framer.com/motion/) transitions, global toasts.
 
+## How the Voting Mechanism Works
+
+To protect the system from spam and fake accounts (Sybil attacks), ShadowVote operates using an "Epoch" system. The voting process is broken down into three simple phases:
+
+### Phase 1: Registration (Off-Chain)
+Users cannot simply show up and vote instantly; they must first register for the current voting epoch.
+1. A user connects their Midnight Lace wallet.
+2. The system checks their balance: *Do they hold the minimum requirement of 1000 tNIGHT tokens?*
+3. If yes, the user clicks **Register**. 
+4. The application extracts a cryptographic "Leaf" (a mathematically scrambled version of their identity) and saves it to our off-chain database (Supabase). **At this stage, the user cannot vote yet.**
+
+### Phase 2: Epoch Synchronization (Admin)
+The blockchain needs to know the official "VIP List" of registered voters before a poll opens.
+1. An Admin logs into the dashboard.
+2. The Admin clicks **Sync Voters**.
+3. The application downloads all registered leaves from the database and hashes them together into one single cryptographic signature called a **Merkle Root**.
+4. The Admin submits this single Root to the Midnight smart contract. The blockchain is now locked in and ready for the vote.
+
+### Phase 3: Casting a Vote (On-Chain)
+Now that the blockchain knows the mathematical shape of the VIP list, users can vote privately.
+1. The user selects a proposal and chooses "Yes" or "No".
+2. The ShadowVote frontend silently rebuilds the VIP list in the user's browser memory.
+3. It generates a **Zero-Knowledge Proof**—a complex mathematical receipt that says: *"I am on the VIP list, but I will not tell you which specific person I am."*
+4. The user submits this Proof to the blockchain.
+5. The smart contract verifies the math. If it matches the synced Root, the vote is counted. The user's identity remains 100% anonymous.
+   
 ## Tech stack
 
 | Layer | Choice |
