@@ -13,7 +13,16 @@ import { useCallback, useState } from 'react';
 
 const Wrap = styled('div', {
   display: 'inline-flex',
-  alignItems: 'center',
+  flexDirection: 'column',
+  alignItems: 'flex-start',
+  gap: '$2',
+});
+
+const StatusText = styled('span', {
+  fontSize: '$sm',
+  color: '$gray600',
+  maxWidth: 280,
+  lineHeight: 1.35,
 });
 
 function isPostgresUniqueViolation(err: unknown): boolean {
@@ -29,6 +38,16 @@ export type RegisterToVoteProps = {
   syncBusy?: boolean;
 };
 
+/**
+ * Derives the voter leaf hex from the local Lace-linked credential (same as ZK voting inputs).
+ */
+async function getMidnightWalletLeaf(secret: Uint8Array | null): Promise<string | null> {
+  await Promise.resolve();
+  if (!secret || secret.length !== 32) return null;
+  const leafBytes = computeVoterLeafHash(secret);
+  return bytes32ToLowerHex(leafBytes);
+}
+
 export function RegisterToVote({ syncBusy = false }: RegisterToVoteProps) {
   const wallet = useMidnightWallet();
   const toast = useToast();
@@ -37,61 +56,94 @@ export function RegisterToVote({ syncBusy = false }: RegisterToVoteProps) {
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const [isRegistering, setIsRegistering] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
 
   const handleRegister = useCallback(async () => {
-    if (!wallet.isConnected || !wallet.unshieldedAddress) {
-      toast.error('Wallet required', 'Connect Lace before registering.');
-      return;
-    }
-    if (!api) {
-      toast.error('Wallet required', 'Connector not available.');
-      return;
-    }
-    if (!identity.voterSecret || identity.voterSecret.length !== 32) {
-      toast.error('Identity not ready', 'Wait for your local voter credential to load.');
-      return;
-    }
-    if (!supabase) {
-      toast.error('Supabase not configured', 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
-      return;
-    }
+    if (isLoading) return;
 
-    setIsRegistering(true);
+    setIsLoading(true);
+    setStatusMessage('Requesting wallet access...');
+    console.log('[Register] 1. Starting registration process...');
+
     try {
-      try {
-        await assertMinGovernanceBalance(api);
-      } catch (e: unknown) {
-        const msg = e instanceof Error ? e.message : 'Balance check failed';
-        toast.error('Insufficient tNIGHT', msg);
-        return;
+      console.log('[Register] 2. Awaiting wallet leaf...');
+
+      if (!wallet.isConnected || !wallet.unshieldedAddress) {
+        throw new Error('Connect Lace before registering.');
+      }
+      if (!api) {
+        throw new Error('Connector not available.');
+      }
+      if (!supabase) {
+        throw new Error(
+          'Supabase not configured. Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.',
+        );
+      }
+      if (!identity.isReady) {
+        throw new Error('Wait for your local voter credential to load.');
+      }
+      if (!identity.voterSecret || identity.voterSecret.length !== 32) {
+        throw new Error('Could not extract leaf from wallet. Please check your Lace extension.');
+      }
+      if (identity.blockedByFundThreshold) {
+        throw new Error('Insufficient tNIGHT to register. Fund your wallet above the governance minimum.');
       }
 
-      const leafBytes = computeVoterLeafHash(identity.voterSecret);
-      const currentUserLeafHex = bytes32ToLowerHex(leafBytes);
+      setStatusMessage('Verifying governance balance...');
+      console.log('[Register] 2a. Checking tNIGHT / governance balance...');
+      await assertMinGovernanceBalance(api);
+      console.log('[Register] 2b. Balance check completed.');
+
+      const userLeaf = await getMidnightWalletLeaf(identity.voterSecret);
+      if (!userLeaf) {
+        throw new Error('Could not extract leaf from wallet. Please check your Lace extension.');
+      }
+      console.log('[Register] 3. Leaf extracted:', userLeaf);
+
       const connectedAddress = wallet.unshieldedAddress.trim();
 
-      const { error } = await supabase
-        .from('registered_voters')
-        .insert([{ wallet_address: connectedAddress, voter_leaf: currentUserLeafHex }]);
+      setStatusMessage('Saving to registry...');
+      console.log('[Register] 4. Awaiting Supabase insertion...');
+
+      const { error } = await supabase.from('registered_voters').insert([
+        { wallet_address: connectedAddress, voter_leaf: userLeaf },
+      ]);
 
       if (error) {
-        if (isPostgresUniqueViolation(error)) {
-          toast.info('Your wallet is already registered!', 'This wallet already has a voter leaf on file.');
-          return;
+        if (isPostgresUniqueViolation(error) || error.code === '23505') {
+          throw new Error('Your wallet is already registered!');
         }
-        toast.error('Registration failed', error.message);
-        return;
+        throw error;
       }
 
-      toast.success(
-        'Successfully registered!',
-        'Waiting for Admin to sync the epoch.',
-      );
+      console.log('[Register] 5. Registration successful!');
+      setStatusMessage('Successfully registered!');
+      toast.success('Successfully registered!', 'Waiting for Admin to sync the epoch.');
+    } catch (error: unknown) {
+      console.error('[Register] ERROR:', error);
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === 'object' && error !== null && 'message' in error
+            ? String((error as { message: unknown }).message)
+            : 'Registration failed.';
+      setStatusMessage(message || 'Registration failed.');
+      toast.error('Registration failed', message || 'Registration failed.');
     } finally {
-      setIsRegistering(false);
+      setIsLoading(false);
+      console.log('[Register] 6. Process complete. UI unlocked.');
     }
-  }, [api, identity.voterSecret, toast, wallet.isConnected, wallet.unshieldedAddress]);
+  }, [
+    api,
+    identity.blockedByFundThreshold,
+    identity.isReady,
+    identity.voterSecret,
+    isLoading,
+    toast,
+    wallet.isConnected,
+    wallet.unshieldedAddress,
+  ]);
 
   if (!wallet.isConnected || !wallet.unshieldedAddress) {
     return null;
@@ -108,11 +160,12 @@ export function RegisterToVote({ syncBusy = false }: RegisterToVoteProps) {
       <Button
         type="button"
         variant="secondary"
-        disabled={!canSubmit || isRegistering || syncBusy}
+        disabled={!canSubmit || isLoading || syncBusy}
         onClick={() => void handleRegister()}
       >
-        {isRegistering ? 'Registering…' : 'Register to Vote'}
+        {isLoading ? 'Registering...' : 'Register to Vote'}
       </Button>
+      {statusMessage ? <StatusText>{statusMessage}</StatusText> : null}
     </Wrap>
   );
 }
