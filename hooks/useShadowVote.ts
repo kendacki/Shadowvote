@@ -9,6 +9,7 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
+import { collectLeavesForRegistrySync } from '@/lib/voterLeavesSync';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { loadCompiledShadowVoteAdminContract } from '@/lib/loadCompiledShadowVoteAdmin';
@@ -130,6 +131,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const [pendingProposalIds, setPendingProposalIds] = useState<number[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
+  const [isSyncingRegistry, setIsSyncingRegistry] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
   /** Bumps when on-chain nullifier set updates (drives `checkHasVoted` re-renders). */
@@ -419,8 +421,16 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     [connectedApi, voterSecret, fetchProposals],
   );
 
-  const updateVoterRootFromRegistry = useCallback(
-    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
+  /**
+   * Submit `update_voter_root` with an already computed Merkle root field (mutable Compact circuit).
+   */
+  const submitUpdateVoterRoot = useCallback(
+    async (
+      rootField: bigint,
+      adminPreimage32: Uint8Array,
+      onStage: ((stage: VoteTxStage) => void) | undefined,
+      loadingMode: 'vote' | 'sync',
+    ) => {
       setError(null);
       if (!connectedApi) {
         onStage?.('failed');
@@ -434,13 +444,12 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         else onStage?.('failed');
         throw e;
       }
-      setIsVoting(true);
+      if (loadingMode === 'vote') setIsVoting(true);
+      else setIsSyncingRegistry(true);
       try {
         onStage?.('preparing');
         const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
         providersRef.current = providers;
-        const leaves = getAuthorizedVoterLeaves();
-        const rootField = computeVoterRegistryRootField(leaves);
         const compiled = await loadCompiledShadowVoteAdminContract(adminPreimage32);
         onStage?.('proving');
         const found = await findDeployedContract(providers as never, {
@@ -470,10 +479,43 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         setError(e instanceof Error ? e.message : 'update_voter_root failed');
         throw e;
       } finally {
-        setIsVoting(false);
+        if (loadingMode === 'vote') setIsVoting(false);
+        else setIsSyncingRegistry(false);
       }
     },
     [connectedApi, fetchProposals],
+  );
+
+  const updateVoterRootFromRegistry = useCallback(
+    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
+      const leaves = getAuthorizedVoterLeaves();
+      const rootField = computeVoterRegistryRootField(leaves);
+      await submitUpdateVoterRoot(rootField, adminPreimage32, onStage, 'vote');
+    },
+    [submitUpdateVoterRoot],
+  );
+
+  /**
+   * Merges leaves from Supabase (`voters` / `subscribers` / configured tables), `voter-registry.json`,
+   * and the admin leaf (local voter secret or `NEXT_PUBLIC_ADMIN_VOTER_LEAF_HEX`), then calls `update_voter_root`.
+   */
+  const syncVoterRegistry = useCallback(
+    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
+      onStage?.('preparing');
+      const adminLeaf =
+        voterSecret && voterSecret.length === 32 ? computeVoterLeafHash(voterSecret) : null;
+      const leaves = await collectLeavesForRegistrySync(adminLeaf);
+      if (leaves.length === 0) {
+        const msg =
+          'No voter leaves found — add rows to Supabase (voter leaf column) or config/voter-registry.json.';
+        setError(msg);
+        onStage?.('failed');
+        throw new Error(msg);
+      }
+      const newRoot = computeVoterRegistryRootField(leaves);
+      await submitUpdateVoterRoot(newRoot, adminPreimage32, onStage, 'sync');
+    },
+    [submitUpdateVoterRoot, voterSecret],
   );
 
   return {
@@ -485,9 +527,11 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     fetchProposals,
     castVote,
     updateVoterRootFromRegistry,
+    syncVoterRegistry,
     checkHasVoted,
     isLoadingProposals,
     isVoting,
+    isSyncingRegistry,
     error,
     syncError,
     clearError: () => setError(null),
