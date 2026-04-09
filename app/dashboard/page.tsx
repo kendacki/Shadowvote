@@ -5,6 +5,7 @@ import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { PastProposalCard } from '@/components/PastProposalCard';
 import { ProposalCard } from '@/components/ProposalCard';
+import { SearchBar } from '@/components/SearchBar';
 import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
@@ -13,7 +14,7 @@ import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useCallback, useState, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 const PageShell = styled(motion.div, {
   flex: 1,
   display: 'flex',
@@ -148,6 +149,13 @@ const DisconnectPanel = styled(motion.div, {
   textAlign: 'center',
 });
 
+const SearchRow = styled('div', {
+  flexBasis: '100%',
+  width: '100%',
+  maxWidth: '560px',
+  marginTop: '$5',
+});
+
 function LoadingSkeleton() {
   return (
     <SkeletonGrid aria-busy aria-label="Loading proposals">
@@ -174,9 +182,45 @@ export default function DashboardPage() {
   const clearSyncError = shadowVote?.clearSyncError ?? (() => {});
 
   const safeProposals = Array.isArray(proposals) ? proposals : [];
+  const allProposals = shadowVote?.allProposals ?? safeProposals;
   const allPastProposals = shadowVote?.allPastProposals ?? [];
 
+  const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const searchNormalized = searchQuery.trim().toLowerCase();
+
+  const filteredActiveProposals = useMemo(() => {
+    if (!searchNormalized) return allProposals;
+    return allProposals.filter((p) => {
+      let title = '';
+      try {
+        const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
+        const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+        const t = map[String(p.id)];
+        title = typeof t === 'string' ? t.toLowerCase() : '';
+      } catch {
+        /* ignore */
+      }
+      return (
+        String(p.id).toLowerCase().includes(searchNormalized) || title.includes(searchNormalized)
+      );
+    });
+  }, [allProposals, searchNormalized, searchQuery]);
+
+  const filteredPastProposals = useMemo(() => {
+    if (!searchNormalized) return allPastProposals;
+    return allPastProposals.filter(
+      (p) =>
+        p.title.toLowerCase().includes(searchNormalized) ||
+        p.id.toLowerCase().includes(searchNormalized),
+    );
+  }, [allPastProposals, searchNormalized, searchQuery]);
+
+  const showSearchEmpty =
+    searchNormalized.length > 0 &&
+    filteredActiveProposals.length === 0 &&
+    filteredPastProposals.length === 0;
 
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
@@ -237,7 +281,7 @@ export default function DashboardPage() {
   }
 
   let proposalBody: ReactNode;
-  if (isLoading && safeProposals.length === 0) {
+  if (isLoading && allProposals.length === 0 && !searchNormalized) {
     proposalBody = <LoadingSkeleton />;
   } else if (shadowError) {
     proposalBody = (
@@ -256,17 +300,32 @@ export default function DashboardPage() {
         </Button>
       </HookErrorPanel>
     );
-  } else if (safeProposals.length === 0) {
+  } else if (showSearchEmpty) {
+    proposalBody = (
+      <Body css={{ fontFamily: '$poppins', fontWeight: '$regular', color: '$gray600', marginBottom: '$4' }}>
+        No proposals match your search.
+      </Body>
+    );
+  } else if (allProposals.length === 0 && !searchNormalized) {
     proposalBody = (
       <EmptyState
         onOpenModal={() => setIsModalOpen(true)}
         disabled={!identityReady || isVoting}
       />
     );
+  } else if (searchNormalized) {
+    proposalBody =
+      filteredActiveProposals.length > 0 ? (
+        <ProposalGrid>
+          {filteredActiveProposals.map((p, i) => (
+            <ProposalCard key={p.id} proposalId={p.id} tally={p.tally} index={i} />
+          ))}
+        </ProposalGrid>
+      ) : null;
   } else {
     proposalBody = (
       <ProposalGrid>
-        {safeProposals.map((p, i) => (
+        {allProposals.map((p, i) => (
           <ProposalCard key={p.id} proposalId={p.id} tally={p.tally} index={i} />
         ))}
       </ProposalGrid>
@@ -298,6 +357,9 @@ export default function DashboardPage() {
             >
               New Proposal
             </Button>
+            <SearchRow>
+              <SearchBar value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
+            </SearchRow>
           </Hero>
 
           {wallet?.error ? (
@@ -325,9 +387,11 @@ export default function DashboardPage() {
           <PastSection aria-labelledby="dashboard-past-proposals-heading">
             <PastHeading id="dashboard-past-proposals-heading">Past Proposals</PastHeading>
             <PastGrid>
-              {allPastProposals.map((p, i) => (
-                <PastProposalCard key={p.id} proposal={p} index={i} />
-              ))}
+              {showSearchEmpty
+                ? null
+                : (searchNormalized ? filteredPastProposals : allPastProposals).map((p, i) => (
+                    <PastProposalCard key={p.id} proposal={p} index={i} />
+                  ))}
             </PastGrid>
           </PastSection>
         </motion.div>

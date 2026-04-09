@@ -183,6 +183,54 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     return merged;
   }, [chainProposals, pendingProposalIds]);
 
+  /** Simulated off-chain index (e.g. Supabase) merged into the active set — extend when wired. */
+  const fetchGlobalProposals = useCallback(async (): Promise<ProposalView[]> => {
+    await new Promise<void>((resolve) => {
+      window.setTimeout(resolve, 280);
+    });
+    return [];
+  }, []);
+
+  const [globalProposals, setGlobalProposals] = useState<ProposalView[]>([]);
+
+  useEffect(() => {
+    if (!connectedApi) {
+      setGlobalProposals([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      try {
+        const rows = await fetchGlobalProposals();
+        if (!cancelled) setGlobalProposals(rows);
+      } catch {
+        if (!cancelled) setGlobalProposals([]);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedApi, fetchGlobalProposals]);
+
+  /** Active proposals: on-chain + pending + global off-chain overlay (same id merges by max tally). */
+  const allProposals = useMemo(() => {
+    const byId = new Map<number, ProposalView>();
+    for (const p of proposals) {
+      byId.set(p.id, { ...p });
+    }
+    for (const p of globalProposals) {
+      const cur = byId.get(p.id);
+      if (!cur) {
+        byId.set(p.id, { ...p });
+      } else {
+        byId.set(p.id, { id: p.id, tally: Math.max(cur.tally, p.tally) });
+      }
+    }
+    const out = [...byId.values()];
+    out.sort((a, b) => a.id - b.id);
+    return out;
+  }, [proposals, globalProposals]);
+
   const allPastProposals = useMemo(
     () => [...userFinishedProposals, ...MOCK_PAST_PROPOSALS],
     [userFinishedProposals],
@@ -403,6 +451,8 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   return {
     proposals,
+    allProposals,
+    fetchGlobalProposals,
     userFinishedProposals,
     allPastProposals,
     registerPendingProposal,
