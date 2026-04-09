@@ -120,6 +120,18 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000). Connect Lace, then use **Dashboard** for proposals and votes.
 
+If voting fails with **`CACHE MISMATCH ERROR`** or a witness error mentioning **`voterMembershipPath`**, Next.js is still serving the old Merkle `Contract` while this repo is **Open DAO** (only `voterSecret`). Recompile, republish ZK assets, and clear the Next cache:
+
+```bash
+npm run compile:contract
+npm run zk:public
+# Windows PowerShell:
+Remove-Item -Recurse -Force .next
+npm run dev
+```
+
+`npm run build` runs a check that `build/contract` matches Open DAO before producing a production bundle.
+
 ### 6. Deploy contract (optional)
 
 With wallet seed and proof server up:

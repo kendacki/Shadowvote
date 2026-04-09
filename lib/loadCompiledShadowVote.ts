@@ -2,6 +2,26 @@ import { CompiledContract } from '@midnight-ntwrk/compact-js';
 import type { WitnessContext } from '@midnight-ntwrk/compact-runtime';
 
 /**
+ * Merkle-era `build/contract` requires `voterMembershipPath`; Open DAO only has `voterSecret`.
+ * Detect mismatch before ZK/prove with a confusing CompactError.
+ */
+function assertOpenDaoContractClass(Contract: new (witnesses: unknown) => unknown): void {
+  const voterSecretStub = (): [Record<string, never>, Uint8Array] => [{}, new Uint8Array(32)];
+  try {
+    new Contract({ voterSecret: voterSecretStub });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (msg.includes('voterMembershipPath')) {
+      throw new Error(
+        'CACHE MISMATCH ERROR: Next.js is serving the old Merkle contract. Please run: rm -rf .next && npm run compile:contract' +
+          ' && npm run zk:public (then npm run dev). On Windows PowerShell use: Remove-Item -Recurse -Force .next',
+      );
+    }
+    throw e;
+  }
+}
+
+/**
  * Loads the Compact build and attaches the `voterSecret` witness (for nullifier derivation).
  */
 export async function loadCompiledShadowVoteContract(
@@ -15,6 +35,7 @@ export async function loadCompiledShadowVoteContract(
   const secretCopy = new Uint8Array(voterSecret);
 
   const mod = await import('@shadowvote/contract');
+  assertOpenDaoContractClass(mod.Contract);
 
   const pathForAssets =
     typeof window !== 'undefined'
