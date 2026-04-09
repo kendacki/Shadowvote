@@ -37,11 +37,11 @@ const LogoPulseWrap = styled('div', {
 });
 
 const LogoImg = styled('img', {
-  width: '120px',
-  height: '120px',
+  width: '140px',
+  height: '140px',
   objectFit: 'contain',
   display: 'block',
-  filter: 'drop-shadow(0 12px 32px rgba(239, 68, 68, 0.2))',
+  filter: 'drop-shadow(0 12px 28px rgba(239, 68, 68, 0.22))',
 });
 
 const Label = styled('span', {
@@ -52,8 +52,9 @@ const Label = styled('span', {
   textTransform: 'uppercase',
 });
 
-const LOGO_PNG = '/shadowvote-logo.png';
-const LOGO_SVG = '/shadowvote-emblem.svg';
+/** Branded loader art (hooded emblem PNG); falls back to vector emblem if missing. */
+const LOADER_PNG = '/shadowvote-loader.png';
+const FALLBACK_SVG = '/shadowvote-emblem.svg';
 
 export type LoadingScreenProps = {
   message?: string;
@@ -62,7 +63,7 @@ export type LoadingScreenProps = {
 };
 
 export function LoadingScreen({ message = 'Initializing', variant = 'dark' }: LoadingScreenProps) {
-  const [src, setSrc] = useState(LOGO_PNG);
+  const [src, setSrc] = useState(LOADER_PNG);
 
   const isLight = variant === 'light';
 
@@ -81,12 +82,12 @@ export function LoadingScreen({ message = 'Initializing', variant = 'dark' }: Lo
           <LogoImg
             src={src}
             alt="ShadowVote"
-            width={120}
-            height={120}
+            width={140}
+            height={140}
             decoding="sync"
             fetchPriority="high"
             onError={() => {
-              if (src !== LOGO_SVG) setSrc(LOGO_SVG);
+              if (src !== FALLBACK_SVG) setSrc(FALLBACK_SVG);
             }}
           />
         </LogoPulseWrap>
