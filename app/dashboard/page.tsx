@@ -9,7 +9,8 @@ import { SearchBar } from '@/components/SearchBar';
 import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
-import { useShadowVote } from '@/hooks/useShadowVote';
+import { useShadowVote, type ProposalView } from '@/hooks/useShadowVote';
+import { useSupabaseSync } from '@/hooks/useSupabaseSync';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
@@ -172,6 +173,7 @@ export default function DashboardPage() {
   const api = wallet?.getConnectedApi?.() ?? null;
   const identity = useVoterIdentity();
   const shadowVote = useShadowVote(api, identity?.voterSecret ?? null);
+  const { offChainProposals } = useSupabaseSync();
 
   const proposals = shadowVote?.proposals;
   const isLoading = shadowVote?.isLoadingProposals ?? false;
@@ -185,28 +187,56 @@ export default function DashboardPage() {
   const allProposals = shadowVote?.allProposals ?? safeProposals;
   const allPastProposals = shadowVote?.allPastProposals ?? [];
 
+  const supabaseAsProposalViews = useMemo(() => {
+    const out: ProposalView[] = [];
+    for (const row of offChainProposals) {
+      const n = Number.parseInt(String(row.id), 10);
+      if (!Number.isFinite(n) || n < 0 || n > 0xffffffff) continue;
+      out.push({ id: n, tally: 0 });
+    }
+    return out;
+  }, [offChainProposals]);
+
+  /** On-chain + pending + global overlay, merged with Supabase waiting-room rows (tally 0 until indexed). */
+  const allProposalsUnified = useMemo(() => {
+    const byId = new Map<number, ProposalView>();
+    for (const p of allProposals) {
+      byId.set(p.id, { ...p });
+    }
+    for (const p of supabaseAsProposalViews) {
+      if (!byId.has(p.id)) {
+        byId.set(p.id, { id: p.id, tally: 0 });
+      }
+    }
+    return [...byId.values()].sort((a, b) => a.id - b.id);
+  }, [allProposals, supabaseAsProposalViews]);
+
   const [searchQuery, setSearchQuery] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
 
   const searchNormalized = searchQuery.trim().toLowerCase();
 
   const filteredActiveProposals = useMemo(() => {
-    if (!searchNormalized) return allProposals;
-    return allProposals.filter((p) => {
-      let title = '';
+    if (!searchNormalized) return allProposalsUnified;
+    return allProposalsUnified.filter((p) => {
+      let titleLs = '';
       try {
         const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
         const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
         const t = map[String(p.id)];
-        title = typeof t === 'string' ? t.toLowerCase() : '';
+        titleLs = typeof t === 'string' ? t.toLowerCase() : '';
       } catch {
         /* ignore */
       }
+      const sbTitle =
+        offChainProposals.find((r) => String(r.id) === String(p.id))?.title?.toLowerCase() ?? '';
       return (
-        String(p.id).toLowerCase().includes(searchNormalized) || title.includes(searchNormalized)
+        String(p.id).toLowerCase().includes(searchNormalized) ||
+        titleLs.includes(searchNormalized) ||
+        sbTitle.includes(searchNormalized)
       );
     });
-  }, [allProposals, searchNormalized, searchQuery]);
+  }, [allProposalsUnified, offChainProposals, searchNormalized, searchQuery]);
 
   const filteredPastProposals = useMemo(() => {
     if (!searchNormalized) return allPastProposals;
@@ -225,7 +255,6 @@ export default function DashboardPage() {
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
 
-  const registerPending = shadowVote?.registerPendingProposal;
   const recordPast = shadowVote?.recordUserPastProposalFromModal;
 
   const handleCreateProposal = useCallback(
@@ -240,11 +269,9 @@ export default function DashboardPage() {
           /* ignore */
         }
       }
-      registerPending?.(proposalId);
       recordPast?.(proposalId, title);
-      setIsModalOpen(false);
     },
-    [registerPending, recordPast],
+    [recordPast],
   );
 
   if (wallet?.isLoading) {
@@ -281,7 +308,7 @@ export default function DashboardPage() {
   }
 
   let proposalBody: ReactNode;
-  if (isLoading && allProposals.length === 0 && !searchNormalized) {
+  if (isLoading && allProposalsUnified.length === 0 && !searchNormalized) {
     proposalBody = <LoadingSkeleton />;
   } else if (shadowError) {
     proposalBody = (
@@ -306,7 +333,7 @@ export default function DashboardPage() {
         No proposals match your search.
       </Body>
     );
-  } else if (allProposals.length === 0 && !searchNormalized) {
+  } else if (allProposalsUnified.length === 0 && !searchNormalized) {
     proposalBody = (
       <EmptyState
         onOpenModal={() => setIsModalOpen(true)}
@@ -325,7 +352,7 @@ export default function DashboardPage() {
   } else {
     proposalBody = (
       <ProposalGrid>
-        {allProposals.map((p, i) => (
+        {allProposalsUnified.map((p, i) => (
           <ProposalCard key={p.id} proposalId={p.id} tally={p.tally} index={i} />
         ))}
       </ProposalGrid>

@@ -2,6 +2,8 @@
 
 import { Button } from '@/components/Button';
 import { Body, Caption, H2 } from '@/components/Typography';
+import { useToast } from '@/contexts/ToastContext';
+import { useSupabaseSync } from '@/hooks/useSupabaseSync';
 import { styled } from '@/stitches.config';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useId, useState } from 'react';
@@ -77,7 +79,9 @@ export type CreateProposalModalProps = {
   /** @deprecated use `isOpen` */
   open?: boolean;
   onClose: () => void;
+  /** Runs after a successful Supabase insert (localStorage / UI side effects only). */
   onSubmit: (payload: { title: string; proposalId: number }) => void | Promise<void>;
+  /** Legacy: wallet voting state; primary submit uses internal Supabase save state. */
   isSubmitting?: boolean;
 };
 
@@ -89,11 +93,14 @@ export function CreateProposalModal({
   isSubmitting,
 }: CreateProposalModalProps) {
   const visible = Boolean(isOpen ?? open);
+  const toast = useToast();
+  const { publishProposal, isConfigured } = useSupabaseSync();
   const headingId = useId();
   const proposalTitleInputId = useId();
   const idFieldId = useId();
   const [title, setTitle] = useState('');
   const [proposalIdRaw, setProposalIdRaw] = useState('');
+  const [isSavingOffChain, setIsSavingOffChain] = useState(false);
   /** Portals attach after mount so SSR/hydration never targets a missing `document.body`. */
   const [portalReady, setPortalReady] = useState(false);
 
@@ -105,6 +112,7 @@ export function CreateProposalModal({
     if (!visible) {
       setTitle('');
       setProposalIdRaw('');
+      setIsSavingOffChain(false);
     }
   }, [visible]);
 
@@ -113,8 +121,29 @@ export function CreateProposalModal({
     if (!Number.isFinite(n) || n < 0 || n > 0xffffffff) {
       return;
     }
-    await onSubmit({ title: title.trim(), proposalId: n });
-  }, [onSubmit, proposalIdRaw, title]);
+    if (!isConfigured) {
+      toast.error('Supabase is not configured', 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
+      return;
+    }
+    const trimmedTitle = title.trim();
+    const displayTitle = trimmedTitle || `Proposal #${n}`;
+    setIsSavingOffChain(true);
+    try {
+      await publishProposal({
+        id: String(n),
+        title: displayTitle,
+        status: 'Pending First Vote',
+      });
+      toast.success('Proposal saved to off-chain registry!');
+      await Promise.resolve(onSubmit({ title: trimmedTitle, proposalId: n }));
+      onClose();
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Failed to save proposal';
+      toast.error('Could not save proposal', msg);
+    } finally {
+      setIsSavingOffChain(false);
+    }
+  }, [isConfigured, onClose, onSubmit, proposalIdRaw, publishProposal, title, toast]);
 
   const validId =
     proposalIdRaw.trim() !== '' &&
@@ -149,9 +178,8 @@ export function CreateProposalModal({
               New proposal
             </H2>
             <Body css={{ marginBottom: '$5', fontSize: '$sm' }}>
-              This contract registers a proposal on the ledger when it receives its first vote. Add an ID here to pin a
-              card on your dashboard (tally stays 0 until someone casts the opening vote). The title is stored locally
-              for your reference.
+              New proposals are saved to the off-chain registry (Supabase) until the first vote lands on Midnight. Then
+              the tally syncs from the indexer. Optionally add a title for search and sharing.
             </Body>
 
             <Field>
@@ -180,16 +208,16 @@ export function CreateProposalModal({
             </Field>
 
             <Actions>
-              <Button type="button" variant="secondary" onClick={onClose} disabled={isSubmitting}>
+              <Button type="button" variant="secondary" onClick={onClose} disabled={isSavingOffChain || isSubmitting}>
                 Cancel
               </Button>
               <Button
                 type="button"
                 variant="primary"
-                disabled={!validId || isSubmitting}
+                disabled={!validId || isSavingOffChain || isSubmitting}
                 onClick={() => void handleSubmit()}
               >
-                {isSubmitting ? 'Adding…' : 'Add to dashboard'}
+                {isSavingOffChain ? 'Saving…' : 'Submit proposal'}
               </Button>
             </Actions>
           </Dialog>
