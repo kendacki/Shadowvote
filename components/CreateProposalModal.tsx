@@ -10,9 +10,9 @@ const Backdrop = styled(motion.div, {
   position: 'fixed',
   inset: 0,
   zIndex: 9000,
-  backgroundColor: 'rgba(10, 10, 10, 0.35)',
-  backdropFilter: 'blur(8px)',
-  WebkitBackdropFilter: 'blur(8px)',
+  backgroundColor: 'rgba(10, 10, 10, 0.38)',
+  backdropFilter: 'blur(4px)',
+  WebkitBackdropFilter: 'blur(4px)',
   display: 'flex',
   alignItems: 'center',
   justifyContent: 'center',
@@ -140,7 +140,7 @@ export function CreateProposalModal({
             </Body>
 
             <Field>
-              <Label htmlFor={idFieldId}>Proposal ID (number)</Label>
+              <Label htmlFor={idFieldId}>Proposal ID</Label>
               <Input
                 id={idFieldId}
                 type="text"
@@ -153,7 +153,7 @@ export function CreateProposalModal({
             </Field>
 
             <Field>
-              <Label htmlFor={proposalTitleInputId}>Title / label (optional)</Label>
+              <Label htmlFor={proposalTitleInputId}>Proposal title (optional)</Label>
               <Input
                 id={proposalTitleInputId}
                 type="text"
@@ -174,7 +174,7 @@ export function CreateProposalModal({
                 disabled={!validId || isSubmitting}
                 onClick={() => void handleSubmit()}
               >
-                {isSubmitting ? 'Working…' : 'Submit proposal'}
+                {isSubmitting ? 'Submitting…' : 'Submit Proposal'}
               </Button>
             </Actions>
           </Dialog>
