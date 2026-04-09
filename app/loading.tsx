@@ -1,6 +1,16 @@
-import { LoadingScreen } from '@/components/LoadingScreen';
-
-/** Next.js route-level Suspense fallback — runs during navigation and first paint before segment resolves. */
+/** Route-level Suspense fallback — keep this non-fixed so it cannot cover the hydrated page if boundaries glitch. */
 export default function Loading() {
-  return <LoadingScreen message="Loading…" variant="light" />;
+  return (
+    <div
+      style={{
+        padding: '48px 24px',
+        textAlign: 'center',
+        fontFamily: 'system-ui, sans-serif',
+        color: '#52525b',
+        fontSize: '0.9375rem',
+      }}
+    >
+      Loading…
+    </div>
+  );
 }

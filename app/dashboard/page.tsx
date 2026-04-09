@@ -10,7 +10,8 @@ import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { useEffect, useState } from 'react';
 import { formatTNight, truncateAddress } from '@/utils/formatters';
 
 const PageShell = styled(motion.div, {
@@ -51,6 +52,14 @@ const DisconnectPrompt = styled(motion.div, {
   textAlign: 'center',
 });
 
+function safeJsonSnapshot(payload: unknown): string {
+  try {
+    return JSON.stringify(payload, null, 2);
+  } catch {
+    return String(payload);
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const wallet = useMidnightWallet();
@@ -60,6 +69,9 @@ export default function DashboardPage() {
 
   const proposals = shadowVote?.proposals;
   const isLoading = shadowVote?.isLoadingProposals ?? false;
+
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
 
   useEffect(() => {
     console.log({ isLoading, proposalsLength: proposals?.length, proposals });
@@ -86,56 +98,91 @@ export default function DashboardPage() {
     );
   }
 
-  return (
-    <div style={{ minHeight: '100vh', backgroundColor: '#fff' }}>
-      <Header>
-        <div>
-          <Caption>ShadowVote</Caption>
-          <H1 css={{ margin: 0, fontSize: '$xl', fontWeight: '$semibold', color: '$black' }}>
-            Governance Dashboard
-          </H1>
-        </div>
-        <WalletPanel>
-          <Caption>Wallet</Caption>
-          <Body
-            title={wallet.unshieldedAddress}
-            css={{
-              fontSize: '$sm',
-              color: '$black',
-              fontWeight: '$semibold',
-              fontFamily: 'ui-monospace, "Cascadia Mono", monospace',
-              maxWidth: 'min(260px, 72vw)',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
+  const snapshot = {
+    isLoading: isLoading || false,
+    proposalsCount: proposals?.length || 0,
+    proposals: proposals || [],
+  };
+
+  const portal =
+    portalReady && typeof document !== 'undefined'
+      ? createPortal(
+          <div
+            data-shadowvote-xray
+            style={{
+              position: 'fixed',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              zIndex: 2147483647,
+              maxHeight: '45vh',
+              overflow: 'auto',
+              padding: '16px 20px',
+              background: '#dcfce7',
+              borderTop: '3px solid #15803d',
+              color: '#0a0a0a',
+              fontFamily: 'ui-monospace, Consolas, monospace',
+              fontSize: '13px',
+              boxShadow: '0 -8px 32px rgba(0,0,0,0.12)',
             }}
           >
-            {truncateAddress(wallet.unshieldedAddress)}
-          </Body>
-          <Caption>{formatTNight(wallet.tNightBalance)}</Caption>
-        </WalletPanel>
-      </Header>
+            <strong style={{ display: 'block', marginBottom: '8px' }}>ShadowVote diagnostics (portal → body)</strong>
+            <pre style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{safeJsonSnapshot(snapshot)}</pre>
+          </div>,
+          document.body,
+        )
+      : null;
 
-      <div
-        style={{
-          padding: '40px',
-          background: '#fef2f2',
-          border: '2px solid red',
-          color: 'black',
-        }}
-      >
-        <h1>DEBUG X-RAY VIEW</h1>
-        <pre style={{ fontSize: '14px' }}>
-          {JSON.stringify(
-            { isLoading: isLoading || false, proposalsCount: proposals?.length || 0, proposals: proposals || [] },
-            null,
-            2,
-          )}
-        </pre>
-        {(proposals?.length ?? 0) === 0 ? (
-          <EmptyState title="X-ray: EmptyState mount test" description="If you see this card, EmptyState renders." />
-        ) : null}
+  return (
+    <>
+      {portal}
+      <div style={{ minHeight: '100vh', backgroundColor: '#fff' }}>
+        <Header>
+          <div>
+            <Caption>ShadowVote</Caption>
+            <H1 css={{ margin: 0, fontSize: '$xl', fontWeight: '$semibold', color: '$black' }}>
+              Governance Dashboard
+            </H1>
+          </div>
+          <WalletPanel>
+            <Caption>Wallet</Caption>
+            <Body
+              title={wallet.unshieldedAddress}
+              css={{
+                fontSize: '$sm',
+                color: '$black',
+                fontWeight: '$semibold',
+                fontFamily: 'ui-monospace, "Cascadia Mono", monospace',
+                maxWidth: 'min(260px, 72vw)',
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {truncateAddress(wallet.unshieldedAddress)}
+            </Body>
+            <Caption>{formatTNight(wallet.tNightBalance)}</Caption>
+          </WalletPanel>
+        </Header>
+
+        <div
+          style={{
+            padding: '40px',
+            background: '#fef2f2',
+            border: '2px solid red',
+            color: 'black',
+          }}
+        >
+          <h1 style={{ marginTop: 0 }}>Inline diagnostics panel</h1>
+          <pre style={{ fontSize: '14px' }}>{safeJsonSnapshot(snapshot)}</pre>
+          {(proposals?.length ?? 0) === 0 ? (
+            <EmptyState
+              title="Inline empty-state test"
+              description="Confirms EmptyState mounts in normal document flow."
+            />
+          ) : null}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
