@@ -1,11 +1,10 @@
 "use client";
 
-import { AppRouteChrome } from '@/components/AppRouteChrome';
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
-import { PageContainer } from '@/components/PageContainer';
 import { ProposalCard } from '@/components/ProposalCard';
+import { TopNav } from '@/components/TopNav';
 import { Body, H1, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
 import { useToast } from '@/contexts/ToastContext';
@@ -22,22 +21,27 @@ const PageShell = styled(motion.div, {
   backgroundColor: '#FFFFFF',
 });
 
+const DashboardContainer = styled('div', {
+  width: '100%',
+  maxWidth: '1200px',
+  margin: '0 auto',
+  marginTop: '100px',
+  padding: '2rem',
+  boxSizing: 'border-box',
+});
+
 const Hero = styled('div', {
   display: 'flex',
-  flexDirection: 'column',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  justifyContent: 'space-between',
   gap: '$4',
   marginBottom: '$8',
-  '@md': {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
 });
 
 const TitleBlock = styled('div', {
   flex: '1 1 auto',
-  minWidth: 'min(100%, 280px)',
+  minWidth: 'min(100%, 240px)',
 });
 
 const PageTitle = styled('h1', {
@@ -244,24 +248,37 @@ export default function DashboardPage() {
   );
 
   if (wallet?.isLoading) {
-    return <LoadingScreen message="Loading wallet…" variant="light" />;
+    return (
+      <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+        <TopNav />
+        <LoadingScreen message="Loading wallet…" variant="light" />
+      </PageShell>
+    );
   }
 
   if (!wallet?.isConnected || !wallet?.unshieldedAddress) {
     return (
       <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-        <PageContainer>
+        <TopNav />
+        <DashboardContainer>
           <DisconnectPanel initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
             <PageTitle css={{ marginBottom: '$4' }}>Connect your wallet</PageTitle>
             <Body css={{ marginBottom: '$6', fontFamily: '$poppins' }}>
-              Go <strong>home</strong>, tap <strong>Connect</strong> (Lace on Preprod), then <strong>Open app</strong> to
-              reach the dashboard.
+              Use <strong>Connect wallet</strong> above (Lace on Preprod), or go <strong>home</strong> and use{' '}
+              <strong>Connect</strong> → <strong>Open app</strong>.
             </Body>
             <Button type="button" variant="primary" onClick={() => router.push('/')}>
               Return home
             </Button>
           </DisconnectPanel>
-        </PageContainer>
+        </DashboardContainer>
+
+        <CreateProposalModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateProposal}
+          isSubmitting={isVoting}
+        />
       </PageShell>
     );
   }
@@ -305,8 +322,8 @@ export default function DashboardPage() {
 
   return (
     <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
-      <PageContainer>
-        <AppRouteChrome />
+      <TopNav />
+      <DashboardContainer>
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -316,7 +333,9 @@ export default function DashboardPage() {
             <TitleBlock>
               <PageTitle>Governance Dashboard</PageTitle>
               <Subline>
-                {identityReady ? 'Voter identity ready — create or open a proposal below.' : 'Preparing secure voter identity…'}
+                {identityReady
+                  ? 'Voter identity ready — create or open a proposal below.'
+                  : 'Preparing secure voter identity…'}
               </Subline>
             </TitleBlock>
             <Button
@@ -350,10 +369,10 @@ export default function DashboardPage() {
 
           {proposalBody}
         </motion.div>
-      </PageContainer>
+      </DashboardContainer>
 
       <CreateProposalModal
-        open={isModalOpen}
+        isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
         onSubmit={handleCreateProposal}
         isSubmitting={isVoting}

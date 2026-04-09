@@ -71,18 +71,23 @@ const Actions = styled('div', {
 });
 
 export type CreateProposalModalProps = {
-  open: boolean;
+  /** Preferred prop name for visibility. */
+  isOpen?: boolean;
+  /** @deprecated use `isOpen` */
+  open?: boolean;
   onClose: () => void;
   onSubmit: (payload: { title: string; proposalId: number }) => void | Promise<void>;
   isSubmitting?: boolean;
 };
 
 export function CreateProposalModal({
+  isOpen,
   open,
   onClose,
   onSubmit,
   isSubmitting,
 }: CreateProposalModalProps) {
+  const visible = Boolean(isOpen ?? open);
   const headingId = useId();
   const proposalTitleInputId = useId();
   const idFieldId = useId();
@@ -90,11 +95,11 @@ export function CreateProposalModal({
   const [proposalIdRaw, setProposalIdRaw] = useState('');
 
   useEffect(() => {
-    if (!open) {
+    if (!visible) {
       setTitle('');
       setProposalIdRaw('');
     }
-  }, [open]);
+  }, [visible]);
 
   const handleSubmit = useCallback(async () => {
     const n = Number.parseInt(proposalIdRaw.trim(), 10);
@@ -111,7 +116,7 @@ export function CreateProposalModal({
 
   return (
     <AnimatePresence>
-      {open ? (
+      {visible ? (
         <Backdrop
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
