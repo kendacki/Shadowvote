@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { NetworkBanner } from '@/components/NetworkBanner';
-import { TopNav } from '@/components/TopNav';
 import { Poppins } from 'next/font/google';
 import { ClientRoot } from './ClientRoot';
 import './globals.css';
@@ -33,7 +32,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <body style={{ fontFamily: 'var(--font-poppins), Poppins, system-ui, sans-serif', margin: 0 }}>
         <NetworkBanner />
         <ClientRoot>
-          <TopNav />
           <main>{children}</main>
         </ClientRoot>
       </body>
