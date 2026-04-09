@@ -5,7 +5,10 @@ import type { ContractState, StateValue } from '@midnight-ntwrk/compact-runtime'
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Subscription } from 'rxjs';
-import { createShadowVoteProviders } from '@/lib/createShadowVoteProviders';
+import {
+  createShadowVoteProviders,
+  createShadowVotePublicDataProvider,
+} from '@/lib/createShadowVoteProviders';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
@@ -265,25 +268,6 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     });
   }, []);
 
-  useEffect(() => {
-    providersRef.current = null;
-    if (!connectedApi) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const p = await createShadowVoteProviders(connectedApi);
-        if (!cancelled) providersRef.current = p;
-      } catch (e: unknown) {
-        if (!cancelled) {
-          setError(e instanceof Error ? e.message : 'Failed to initialize Midnight providers');
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [connectedApi]);
-
   /** Live indexer sync: WebSocket stream + 12s polling fallback. */
   useEffect(() => {
     if (!connectedApi) {
@@ -298,13 +282,12 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
     const run = async () => {
       try {
-        const p = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
+        const { publicDataProvider } = await createShadowVotePublicDataProvider(connectedApi);
         if (cancelled) return;
-        providersRef.current = p;
 
         const pull = async () => {
           try {
-            const states = await getPublicStates(p.publicDataProvider, SHADOWVOTE_ADDRESS);
+            const states = await getPublicStates(publicDataProvider, SHADOWVOTE_ADDRESS);
             await applyContractState(states.contractState);
           } catch (e: unknown) {
             setSyncError(e instanceof Error ? e.message : 'Failed to sync contract state');
@@ -317,7 +300,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
           if (!cancelled) setIsLoadingProposals(false);
         }
 
-        sub = p.publicDataProvider
+        sub = publicDataProvider
           .contractStateObservable(SHADOWVOTE_ADDRESS, { type: 'latest' })
           .subscribe({
             next: (state) => {
@@ -354,11 +337,10 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
       setNullifierEpoch((e) => e + 1);
       return [];
     }
-    const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
-    providersRef.current = providers;
     setIsLoadingProposals(true);
     try {
-      const states = await getPublicStates(providers.publicDataProvider, SHADOWVOTE_ADDRESS);
+      const { publicDataProvider } = await createShadowVotePublicDataProvider(connectedApi);
+      const states = await getPublicStates(publicDataProvider, SHADOWVOTE_ADDRESS);
       await applyContractState(states.contractState);
       const mod: ContractMod = await import('@shadowvote/contract');
       const ledgerView = mod.ledger(states.contractState as unknown as StateValue);

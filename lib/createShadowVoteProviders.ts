@@ -1,5 +1,6 @@
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
-import { createProofProvider } from '@midnight-ntwrk/midnight-js-types';
+import { httpClientProofProvider } from '@midnight-ntwrk/midnight-js-http-client-proof-provider';
+import { createProofProvider, type PublicDataProvider } from '@midnight-ntwrk/midnight-js-types';
 import { indexerPublicDataProvider } from '@midnight-ntwrk/midnight-js-indexer-public-data-provider';
 import type { ContractProviders } from '@midnight-ntwrk/midnight-js-contracts';
 import type { FinalizedTransaction } from '@midnight-ntwrk/ledger-v8';
@@ -47,6 +48,25 @@ function shieldedCoinPublicKeyToHex(value: string): string {
     return ShieldedCoinPublicKey.fromHexString(hexM[1]!).toHexString();
   }
   return ShieldedCoinPublicKey.codec.decode(NETWORK_ID, MidnightBech32m.parse(trimmed)).toHexString();
+}
+
+/**
+ * Indexer + WS only — no wallet proving hooks. Use for live proposal sync when the connector
+ * omits {@link ConnectedAPI.getProvingProvider} (some Lace builds).
+ */
+export async function createShadowVotePublicDataProvider(
+  api: ConnectedAPI,
+): Promise<{ publicDataProvider: PublicDataProvider }> {
+  const cfg = await api.getConfiguration();
+  return {
+    publicDataProvider: indexerPublicDataProvider(
+      cfg.indexerUri,
+      cfg.indexerWsUri,
+      typeof globalThis.WebSocket === 'function'
+        ? (globalThis.WebSocket as unknown as Parameters<typeof indexerPublicDataProvider>[2])
+        : undefined,
+    ),
+  };
 }
 
 function shieldedEncryptionPublicKeyToHex(value: string): string {
@@ -142,8 +162,21 @@ export async function createShadowVoteProviders(
   const { coinHex, encHex } = await getShieldedKeyMaterial(api);
   const { walletProvider, midnightProvider } = createLaceWalletAndMidnight(api, coinHex, encHex);
 
-  const provingProvider = await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider());
-  const proofProvider = createProofProvider(provingProvider);
+  const proofProvider =
+    typeof api.getProvingProvider === 'function'
+      ? createProofProvider(await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider()))
+      : (() => {
+          const proverUrl =
+            cfg.proverServerUri?.replace(/\/$/, '') ||
+            process.env.NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI?.trim() ||
+            '';
+          if (!proverUrl) {
+            throw new Error(
+              'Wallet does not expose getProvingProvider. Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI to your Midnight proof server URL to submit votes.',
+            );
+          }
+          return httpClientProofProvider(proverUrl, zkConfigProvider);
+        })();
 
   const { unshieldedAddress: accountBech32 } = await api.getUnshieldedAddress();
 
