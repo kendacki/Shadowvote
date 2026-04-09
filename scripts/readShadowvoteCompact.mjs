@@ -21,6 +21,3 @@ export function shadowvoteConstructorArgCount(source = readShadowvoteCompactSour
   return inner.split(',').map((s) => s.trim()).filter(Boolean).length;
 }
 
-export function shadowvoteCompactHasAdminPreimageWitness(source = readShadowvoteCompactSource()) {
-  return /witness\s+adminPreimage\s*\(\s*\)/.test(source);
-}

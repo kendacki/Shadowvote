@@ -29,7 +29,6 @@
     "hooks/**/*.ts",
     "hooks/**/*.tsx",
     "lib/**/*.ts",
-    "config/voter-registry.json",
     "utils/**/*.ts",
     "config/**/*.ts",
     "contexts/**/*.tsx",
