@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
@@ -13,7 +13,7 @@ import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { formatTNight, truncateAddress } from '@/utils/formatters';
 
 const PageShell = styled(motion.div, {
@@ -118,6 +118,30 @@ const SyncBanner = styled(motion.div, {
   backgroundColor: '$gray100',
 });
 
+const HookErrorPanel = styled(motion.div, {
+  maxWidth: '640px',
+  margin: '0 auto',
+  padding: '$6 $5',
+  borderRadius: '$lg',
+  border: '1px solid $red400',
+  backgroundColor: 'rgba(239, 68, 68, 0.06)',
+});
+
+function LoadingSkeleton() {
+  return (
+    <SkeletonGrid>
+      {[0, 1, 2, 3, 4, 5].map((i) => (
+        <SkeletonCard
+          key={i}
+          initial={{ opacity: 0.4 }}
+          animate={{ opacity: [0.4, 0.9, 0.4] }}
+          transition={{ repeat: Infinity, duration: 1.4, delay: i * 0.08 }}
+        />
+      ))}
+    </SkeletonGrid>
+  );
+}
+
 function applyVoteStageToast(
   toast: ReturnType<typeof useToast>,
   toastId: string,
@@ -190,20 +214,40 @@ export default function DashboardPage() {
   const router = useRouter();
   const toast = useToast();
   const wallet = useMidnightWallet();
-  const api = wallet.getConnectedApi();
+  const api = wallet?.getConnectedApi?.() ?? null;
   const identity = useVoterIdentity();
-  const shadow = useShadowVote(api, identity.voterSecret);
+  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null);
+
+  const proposals = shadowVote?.proposals;
+  const isLoading = shadowVote?.isLoadingProposals ?? false;
+  const shadowError = shadowVote?.error ?? null;
+  const isVoting = shadowVote?.isVoting ?? false;
+  const syncError = shadowVote?.syncError ?? null;
+
+  const safeProposals = Array.isArray(proposals) ? proposals : [];
+  const clearShadowError = shadowVote?.clearError ?? (() => {});
+  const clearSyncError = shadowVote?.clearSyncError ?? (() => {});
 
   const [createOpen, setCreateOpen] = useState(false);
 
-  const identityReady = identity.isReady && identity.voterSecret !== null && identity.voterSecret.length === 32;
+  const identityReady =
+    Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
+
+  useEffect(() => {
+    console.log({ isLoading, proposalsLength: proposals?.length, proposals });
+  }, [isLoading, proposals]);
 
   const runVoteWithToast = useCallback(
     async (proposalId: number) => {
+      const cast = shadowVote?.castVote;
+      if (typeof cast !== 'function') {
+        console.error('DashboardPage: castVote is not available');
+        return;
+      }
       const toastId = toast.loading('Preparing', 'Initializing transaction…');
-      await shadow.castVote(proposalId, (stage) => applyVoteStageToast(toast, toastId, proposalId, stage));
+      await cast(proposalId, (stage: VoteTxStage) => applyVoteStageToast(toast, toastId, proposalId, stage));
     },
-    [shadow, toast],
+    [shadowVote, toast],
   );
 
   const handleCreateProposal = useCallback(
@@ -228,11 +272,14 @@ export default function DashboardPage() {
     [runVoteWithToast],
   );
 
-  if (wallet.isLoading) {
+  const checkHasVoted =
+    typeof shadowVote?.checkHasVoted === 'function' ? shadowVote.checkHasVoted.bind(shadowVote) : () => false;
+
+  if (wallet?.isLoading) {
     return <LoadingScreen message="Loading wallet…" variant="light" />;
   }
 
-  if (!wallet.isConnected || !wallet.unshieldedAddress) {
+  if (!wallet?.isConnected || !wallet?.unshieldedAddress) {
     return (
       <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
         <DisconnectPrompt initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}>
@@ -246,6 +293,66 @@ export default function DashboardPage() {
           </Button>
         </DisconnectPrompt>
       </PageShell>
+    );
+  }
+
+  let proposalBody: ReactNode;
+  if (isLoading) {
+    proposalBody = <LoadingSkeleton />;
+  } else if (shadowError) {
+    proposalBody = (
+      <HookErrorPanel
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.35 }}
+        role="alert"
+      >
+        <H2 css={{ marginTop: 0, marginBottom: '$3', fontSize: '$lg', color: '$red400' }}>
+          Could not load proposals
+        </H2>
+        <Body css={{ color: '$gray600', marginBottom: '$5' }}>{String(shadowError)}</Body>
+        <Button type="button" variant="secondary" onClick={() => clearShadowError()}>
+          Dismiss
+        </Button>
+      </HookErrorPanel>
+    );
+  } else if (!isLoading && safeProposals.length === 0) {
+    proposalBody = (
+      <EmptyState
+        title="No proposals yet"
+        description={
+          <>
+            Nothing is registered for this contract on-chain yet. Create the first proposal to open a vote, or
+            confirm your contract address in the environment.
+          </>
+        }
+      >
+        <Button
+          type="button"
+          variant="primary"
+          disabled={!identityReady || isVoting}
+          onClick={() => setCreateOpen(true)}
+        >
+          New proposal
+        </Button>
+      </EmptyState>
+    );
+  } else {
+    proposalBody = (
+      <Grid>
+        {safeProposals.map((p, i) => (
+          <ProposalCard
+            key={p.id}
+            index={i}
+            proposalId={p.id}
+            tally={p.tally}
+            isVoting={isVoting}
+            hasVoted={identityReady && checkHasVoted(String(p.id))}
+            disabled={!identityReady}
+            onVote={() => void runVoteWithToast(p.id)}
+          />
+        ))}
+      </Grid>
     );
   }
 
@@ -290,76 +397,30 @@ export default function DashboardPage() {
           <Button
             type="button"
             variant="primary"
-            disabled={!identityReady || shadow.isVoting}
+            disabled={!identityReady || isVoting}
             onClick={() => setCreateOpen(true)}
           >
             New proposal
           </Button>
         </Toolbar>
 
-        {wallet.error ? <Body css={{ color: '$red400', marginBottom: '$4' }}>{wallet.error}</Body> : null}
-        {shadow.error ? <Body css={{ color: '$red400', marginBottom: '$4' }}>{shadow.error}</Body> : null}
+        {wallet?.error ? <Body css={{ color: '$red400', marginBottom: '$4' }}>{wallet.error}</Body> : null}
 
-        {shadow.syncError ? (
+        {syncError ? (
           <SyncBanner
             initial={{ opacity: 0, y: -6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.35 }}
           >
-            <Body css={{ fontSize: '$sm', color: '$gray600', margin: 0 }}>Live sync: {shadow.syncError}</Body>
-            <Button type="button" variant="secondary" onClick={() => shadow.clearSyncError()}>
+            <Body css={{ fontSize: '$sm', color: '$gray600', margin: 0 }}>Live sync: {syncError}</Body>
+            <Button type="button" variant="secondary" onClick={() => clearSyncError()}>
               Dismiss
             </Button>
           </SyncBanner>
         ) : null}
 
         <MainMotion initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35, delay: 0.05 }}>
-          {shadow.isLoadingProposals ? (
-            <SkeletonGrid>
-              {[0, 1, 2, 3, 4, 5].map((i) => (
-                <SkeletonCard
-                  key={i}
-                  initial={{ opacity: 0.4 }}
-                  animate={{ opacity: [0.4, 0.9, 0.4] }}
-                  transition={{ repeat: Infinity, duration: 1.4, delay: i * 0.08 }}
-                />
-              ))}
-            </SkeletonGrid>
-          ) : shadow.proposals.length === 0 ? (
-            <EmptyState
-              title="No proposals yet"
-              description={
-                <>
-                  Nothing is registered for this contract on-chain yet. Create the first proposal to open a vote, or
-                  confirm your contract address in the environment.
-                </>
-              }
-            >
-              <Button
-                type="button"
-                variant="primary"
-                disabled={!identityReady || shadow.isVoting}
-                onClick={() => setCreateOpen(true)}
-              >
-                New proposal
-              </Button>
-            </EmptyState>
-          ) : (
-            <Grid>
-              {shadow.proposals.map((p, i) => (
-                <ProposalCard
-                  key={p.id}
-                  index={i}
-                  proposalId={p.id}
-                  tally={p.tally}
-                  isVoting={shadow.isVoting}
-                  hasVoted={identityReady && shadow.checkHasVoted(String(p.id))}
-                  disabled={!identityReady}
-                  onVote={() => void runVoteWithToast(p.id)}
-                />
-              ))}
-            </Grid>
-          )}
+          {proposalBody}
         </MainMotion>
       </Main>
 
@@ -367,7 +428,7 @@ export default function DashboardPage() {
         open={createOpen}
         onClose={() => setCreateOpen(false)}
         onSubmit={handleCreateProposal}
-        isSubmitting={shadow.isVoting}
+        isSubmitting={isVoting}
       />
     </PageShell>
   );
