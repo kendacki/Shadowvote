@@ -20,7 +20,8 @@ export type OffChainProposalRow = {
 };
 
 export type PublishProposalInput = {
-  id: string;
+  /** Off-chain row key; if omitted or blank, a UUID is generated before insert. */
+  id?: string;
   title: string;
   status: string;
 };
@@ -114,12 +115,40 @@ export function SupabaseSyncProvider({ children }: { children: ReactNode }) {
 
   const publishProposal = useCallback(async (proposal: PublishProposalInput) => {
     if (!supabase) {
+      console.error('[ShadowVote] publishProposal: Supabase client is null (check NEXT_PUBLIC_SUPABASE_* env).');
       throw new Error('Supabase is not configured');
     }
-    const { data, error } = await supabase.from('proposals').insert(proposal).select('*').maybeSingle();
+
+    const id =
+      proposal.id != null && String(proposal.id).trim() !== ''
+        ? String(proposal.id).trim()
+        : crypto.randomUUID();
+    const title =
+      proposal.title != null && String(proposal.title).trim() !== ''
+        ? String(proposal.title).trim()
+        : 'Untitled Proposal';
+    const status =
+      proposal.status != null && String(proposal.status).trim() !== ''
+        ? String(proposal.status).trim()
+        : 'Pending First Vote';
+
+    const rowPayload = { id, title, status };
+    console.log('[ShadowVote] publishProposal: attempting insert', rowPayload);
+
+    const { data, error } = await supabase.from('proposals').insert([rowPayload]).select('*').maybeSingle();
+
     if (error) {
+      console.error('[ShadowVote] SUPABASE ERROR (proposals insert):', {
+        message: error.message,
+        code: error.code,
+        details: error.details,
+        hint: error.hint,
+        fullError: error,
+      });
       throw error;
     }
+
+    console.log('[ShadowVote] publishProposal: insert OK', data);
     const row = data ? rowFromRecord(data as Record<string, unknown>) : null;
     if (row) {
       setOffChainProposals((prev) => mergeRows(prev, row));

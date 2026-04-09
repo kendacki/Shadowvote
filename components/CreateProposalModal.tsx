@@ -119,14 +119,22 @@ export function CreateProposalModal({
   const handleSubmit = useCallback(async () => {
     const n = Number.parseInt(proposalIdRaw.trim(), 10);
     if (!Number.isFinite(n) || n < 0 || n > 0xffffffff) {
+      console.warn('[ShadowVote] CreateProposalModal: invalid proposal id — must be u32', proposalIdRaw);
       return;
     }
     if (!isConfigured) {
+      console.error('[ShadowVote] CreateProposalModal: Supabase not configured');
       toast.error('Supabase is not configured', 'Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY.');
       return;
     }
     const trimmedTitle = title.trim();
     const displayTitle = trimmedTitle || `Proposal #${n}`;
+    console.log('1. Attempting to save proposal:', {
+      id: String(n),
+      title: displayTitle,
+      status: 'Pending First Vote',
+    });
+
     setIsSavingOffChain(true);
     try {
       await publishProposal({
@@ -134,11 +142,26 @@ export function CreateProposalModal({
         title: displayTitle,
         status: 'Pending First Vote',
       });
+      console.log('2. Successfully saved to Supabase!');
       toast.success('Proposal saved to off-chain registry!');
       await Promise.resolve(onSubmit({ title: trimmedTitle, proposalId: n }));
       onClose();
     } catch (e: unknown) {
-      const msg = e instanceof Error ? e.message : 'Failed to save proposal';
+      console.error('CAUGHT EXCEPTION:', e);
+      if (e && typeof e === 'object' && 'code' in e) {
+        console.error('SUPABASE ERROR (postgrest):', {
+          code: (e as { code?: string }).code,
+          message: (e as { message?: string }).message,
+          details: (e as { details?: string }).details,
+          hint: (e as { hint?: string }).hint,
+        });
+      }
+      const msg =
+        e && typeof e === 'object' && 'message' in e && typeof (e as { message: unknown }).message === 'string'
+          ? (e as { message: string }).message
+          : e instanceof Error
+            ? e.message
+            : 'Failed to save proposal';
       toast.error('Could not save proposal', msg);
     } finally {
       setIsSavingOffChain(false);
