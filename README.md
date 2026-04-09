@@ -72,11 +72,14 @@ ShadowVote is currently deployed on the Midnight test network. You can interact 
 git clone <your-fork-or-repo-url> shadowvote
 cd shadowvote
 npm install
+npm run setup
 ```
+
+`npm run setup` creates `.env` from `.env.example` if missing, fills browser/private-state passwords when empty, and prints a short health report (including whether the proof server port responds). Read-only check: `npm run setup:check`.
 
 ### 2. Environment
 
-Copy `.env.example` to `.env` and fill at least:
+Copy `.env.example` to `.env` and fill at least (or use `npm run setup` to bootstrap the file and passwords):
 
 | Variable | Purpose |
 | --- | --- |
@@ -102,9 +105,12 @@ Ensure `public/shadowvote-zk` (or your custom base URL) contains the prover arti
 Required for **CLI deployment** and some local proving flows:
 
 ```bash
-docker compose up proof-server
+npm run start-proof-server
+# uses `docker compose` when available, otherwise `docker-compose`
 # listens on http://127.0.0.1:6300 — set PROOF_SERVER_URL in .env if needed
 ```
+
+**WSL2:** Docker must see your distro (Docker Desktop → **Settings → Resources → WSL integration**). If `docker version` fails inside WSL, run `npm run start-proof-server` from **PowerShell on Windows** instead, or fix integration and open a new WSL terminal.
 
 ### 5. Run the app
 

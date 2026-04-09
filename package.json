@@ -15,7 +15,9 @@
     "zkir:copy": "node -e \"const fs=require('fs');const path=require('path');const d=path.join('build','zkir');const a=path.join(d,'vote.zkir');const b=path.join(d,'vote.bzkir');if(fs.existsSync(a)&&!fs.existsSync(b))fs.copyFileSync(a,b);\"",
     "zk:public": "node scripts/copy-zk-to-public.mjs",
     "deploy": "tsx scripts/deploy.ts",
-    "start-proof-server": "docker compose up proof-server"
+    "setup": "node scripts/setup.mjs",
+    "setup:check": "node scripts/setup.mjs --check",
+    "start-proof-server": "node scripts/start-proof-server.mjs"
   },
   "dependencies": {
     "@midnight-ntwrk/compact-js": "^2.5.0",
