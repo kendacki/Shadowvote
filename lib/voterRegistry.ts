@@ -44,22 +44,24 @@ export function getAuthorizedVoterLeaves(): Uint8Array[] {
 }
 
 /**
- * Same leaves as {@link getAuthorizedVoterLeaves}, but in **development** ensures the voter
- * derived from `voterSecret` is included so local ZK paths match without editing `.env`.
- * Logs `CURRENT VOTER LEAF:` (hex) for copying into `NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX`.
+ * Same ordered leaves as {@link getAuthorizedVoterLeaves}, then **omni-bypass**: if the
+ * current voter leaf (from `voterSecret`) is missing, it is appended so witness generation
+ * always includes this wallet without editing `NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX`.
+ *
+ * **On-chain:** the deployed contract's `voterRoot` must still be the root of a tree built
+ * from the same leaf set (redeploy / env) or `vote` will fail the root assertion.
  */
 export function getAuthorizedVoterLeavesWithDevBypass(voterSecret: Uint8Array | null): Uint8Array[] {
-  const leaves = [...getAuthorizedVoterLeaves()];
+  const finalLeaves = [...getAuthorizedVoterLeaves()];
   if (!voterSecret || voterSecret.length !== 32) {
-    return leaves;
+    return finalLeaves;
   }
   const currentUserLeaf = computeVoterLeafHash(voterSecret);
-  console.log('CURRENT VOTER LEAF:', leafHexForEnv(currentUserLeaf));
-  if (process.env.NODE_ENV === 'development' && !leavesContainLeaf(leaves, currentUserLeaf)) {
-    console.warn(
-      '[ShadowVote] Dev bypass: appending CURRENT VOTER LEAF to registry leaves (not for production).',
-    );
-    leaves.push(currentUserLeaf);
+  const currentUserLeafHex = leafHexForEnv(currentUserLeaf);
+  console.log('CURRENT VOTER LEAF:', currentUserLeafHex);
+  if (!leavesContainLeaf(finalLeaves, currentUserLeaf)) {
+    console.log('🔓 OMNI-BYPASS ACTIVE: Auto-injecting current wallet leaf into Merkle Tree.');
+    finalLeaves.push(currentUserLeaf);
   }
-  return leaves;
+  return finalLeaves;
 }
