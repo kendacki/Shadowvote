@@ -59,7 +59,7 @@ Copy `.env.example` to `.env` and fill at least:
 | `NEXT_PUBLIC_SHADOWVOTE_CONTRACT_ADDRESS` | Deployed ledger address (hex). |
 | `NEXT_PUBLIC_MIDNIGHT_PRIVATE_STATE_PASSWORD` | **≥16 chars** — Level.js private-state store (browser). |
 | `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` or `NEXT_PUBLIC_MIDNIGHT_NETWORK` | e.g. `preprod` (banner uses the logical network). |
-| `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` | URL or path to published ZK assets (default `/shadowvote-zk` after `npm run zk:public`). |
+| `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` | URL or path to published ZK assets (default `/shadowvote-zk` after `npm run zk:public`). | NEXT_PUBLIC_SUPABASE_URL | NEXT_PUBLIC_SUPABASE_ANON_KEY
 | `VOTER_REGISTRY_LEAVES_HEX` / `NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX` | Comma-separated **leaf** hashes (`voterLeafHash`); must match deploy `voterRoot`. |
 
 See `.env.example` for indexer URLs, deploy seed, and proof server host.
