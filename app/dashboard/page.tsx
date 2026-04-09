@@ -1,19 +1,16 @@
 "use client";
 
-import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
-import { ProposalCard } from '@/components/ProposalCard';
-import { Body, Caption, H1, H2 } from '@/components/Typography';
+import { Body, Caption, H1 } from '@/components/Typography';
 import { Button } from '@/components/Button';
-import { useToast } from '@/contexts/ToastContext';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
-import { useShadowVote, type VoteTxStage } from '@/hooks/useShadowVote';
+import { useShadowVote } from '@/hooks/useShadowVote';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
+import { useEffect } from 'react';
 import { formatTNight, truncateAddress } from '@/utils/formatters';
 
 const PageShell = styled(motion.div, {
@@ -47,57 +44,6 @@ const WalletPanel = styled('div', {
   },
 });
 
-const Toolbar = styled('div', {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'stretch',
-  gap: '$4',
-  marginBottom: '$6',
-  '@sm': {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-});
-
-const Main = styled('main', {
-  maxWidth: '1200px',
-  margin: '0 auto',
-  padding:
-    '$8 max($5, env(safe-area-inset-left, 0px)) $9 max($5, env(safe-area-inset-right, 0px))',
-  '@md': {
-    padding: '$8 max($8, env(safe-area-inset-left, 0px)) $9 max($8, env(safe-area-inset-right, 0px))',
-  },
-});
-
-const MainMotion = styled(motion.div, {
-  width: '100%',
-});
-
-const Grid = styled(motion.div, {
-  display: 'grid',
-  gap: '$5',
-  gridTemplateColumns: '1fr',
-  '@md': { gridTemplateColumns: 'repeat(2, 1fr)' },
-  '@lg': { gridTemplateColumns: 'repeat(3, 1fr)' },
-});
-
-const SkeletonGrid = styled('div', {
-  display: 'grid',
-  gap: '$5',
-  gridTemplateColumns: '1fr',
-  '@md': { gridTemplateColumns: 'repeat(2, 1fr)' },
-  '@lg': { gridTemplateColumns: 'repeat(3, 1fr)' },
-});
-
-const SkeletonCard = styled(motion.div, {
-  height: '200px',
-  borderRadius: '$lg',
-  background: 'linear-gradient(90deg, $gray100 0%, $gray200 50%, $gray100 100%)',
-  backgroundSize: '200% 100%',
-});
-
 const DisconnectPrompt = styled(motion.div, {
   maxWidth: '520px',
   margin: '0 auto',
@@ -105,114 +51,8 @@ const DisconnectPrompt = styled(motion.div, {
   textAlign: 'center',
 });
 
-const SyncBanner = styled(motion.div, {
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'space-between',
-  gap: '$3',
-  padding: '$4 $5',
-  marginBottom: '$5',
-  borderRadius: '$md',
-  border: '1px solid $gray200',
-  backgroundColor: '$gray100',
-});
-
-const HookErrorPanel = styled(motion.div, {
-  maxWidth: '640px',
-  margin: '0 auto',
-  padding: '$6 $5',
-  borderRadius: '$lg',
-  border: '1px solid $red400',
-  backgroundColor: 'rgba(239, 68, 68, 0.06)',
-});
-
-function LoadingSkeleton() {
-  return (
-    <SkeletonGrid>
-      {[0, 1, 2, 3, 4, 5].map((i) => (
-        <SkeletonCard
-          key={i}
-          initial={{ opacity: 0.4 }}
-          animate={{ opacity: [0.4, 0.9, 0.4] }}
-          transition={{ repeat: Infinity, duration: 1.4, delay: i * 0.08 }}
-        />
-      ))}
-    </SkeletonGrid>
-  );
-}
-
-function applyVoteStageToast(
-  toast: ReturnType<typeof useToast>,
-  toastId: string,
-  proposalId: number,
-  stage: VoteTxStage,
-) {
-  switch (stage) {
-    case 'preparing':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Preparing',
-        message: 'Setting up providers and contract state…',
-      });
-      break;
-    case 'proving':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Generating ZK proof',
-        message: 'Proving circuit in your browser — this can take a while.',
-      });
-      break;
-    case 'submitting':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Submitting to network',
-        message: 'Balancing and relaying the transaction via Lace.',
-      });
-      break;
-    case 'confirmed':
-      toast.update(toastId, {
-        variant: 'success',
-        title: 'Confirmed',
-        message: `Vote recorded for proposal #${proposalId}.`,
-      });
-      break;
-    case 'failed_user_rejected':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Transaction cancelled',
-        message: 'The wallet did not sign or submit the transaction.',
-      });
-      break;
-    case 'failed_already_voted':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Already voted',
-        message: `Your identity already cast a vote on proposal #${proposalId}. Nullifier is spent on-chain.`,
-      });
-      break;
-    case 'failed_network':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Network error',
-        message: 'Could not complete the request. Check your connection and try again.',
-      });
-      break;
-    case 'failed':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Failed',
-        message: 'The transaction did not complete. See the message below.',
-      });
-      break;
-    default:
-      break;
-  }
-}
-
 export default function DashboardPage() {
   const router = useRouter();
-  const toast = useToast();
   const wallet = useMidnightWallet();
   const api = wallet?.getConnectedApi?.() ?? null;
   const identity = useVoterIdentity();
@@ -220,60 +60,10 @@ export default function DashboardPage() {
 
   const proposals = shadowVote?.proposals;
   const isLoading = shadowVote?.isLoadingProposals ?? false;
-  const shadowError = shadowVote?.error ?? null;
-  const isVoting = shadowVote?.isVoting ?? false;
-  const syncError = shadowVote?.syncError ?? null;
-
-  const safeProposals = Array.isArray(proposals) ? proposals : [];
-  const clearShadowError = shadowVote?.clearError ?? (() => {});
-  const clearSyncError = shadowVote?.clearSyncError ?? (() => {});
-
-  const [createOpen, setCreateOpen] = useState(false);
-
-  const identityReady =
-    Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
 
   useEffect(() => {
     console.log({ isLoading, proposalsLength: proposals?.length, proposals });
   }, [isLoading, proposals]);
-
-  const runVoteWithToast = useCallback(
-    async (proposalId: number) => {
-      const cast = shadowVote?.castVote;
-      if (typeof cast !== 'function') {
-        console.error('DashboardPage: castVote is not available');
-        return;
-      }
-      const toastId = toast.loading('Preparing', 'Initializing transaction…');
-      await cast(proposalId, (stage: VoteTxStage) => applyVoteStageToast(toast, toastId, proposalId, stage));
-    },
-    [shadowVote, toast],
-  );
-
-  const handleCreateProposal = useCallback(
-    async ({ proposalId, title }: { proposalId: number; title: string }) => {
-      if (title) {
-        try {
-          const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
-          const map: Record<string, string> = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-          map[String(proposalId)] = title;
-          localStorage.setItem('shadowvote.proposalTitles.v1', JSON.stringify(map));
-        } catch {
-          /* ignore */
-        }
-      }
-      try {
-        await runVoteWithToast(proposalId);
-        setCreateOpen(false);
-      } catch {
-        /* Toast already shows failure; keep modal open for retry */
-      }
-    },
-    [runVoteWithToast],
-  );
-
-  const checkHasVoted =
-    typeof shadowVote?.checkHasVoted === 'function' ? shadowVote.checkHasVoted.bind(shadowVote) : () => false;
 
   if (wallet?.isLoading) {
     return <LoadingScreen message="Loading wallet…" variant="light" />;
@@ -296,68 +86,8 @@ export default function DashboardPage() {
     );
   }
 
-  let proposalBody: ReactNode;
-  if (isLoading) {
-    proposalBody = <LoadingSkeleton />;
-  } else if (shadowError) {
-    proposalBody = (
-      <HookErrorPanel
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.35 }}
-        role="alert"
-      >
-        <H2 css={{ marginTop: 0, marginBottom: '$3', fontSize: '$lg', color: '$red400' }}>
-          Could not load proposals
-        </H2>
-        <Body css={{ color: '$gray600', marginBottom: '$5' }}>{String(shadowError)}</Body>
-        <Button type="button" variant="secondary" onClick={() => clearShadowError()}>
-          Dismiss
-        </Button>
-      </HookErrorPanel>
-    );
-  } else if (!isLoading && safeProposals.length === 0) {
-    proposalBody = (
-      <EmptyState
-        title="No proposals yet"
-        description={
-          <>
-            Nothing is registered for this contract on-chain yet. Create the first proposal to open a vote, or
-            confirm your contract address in the environment.
-          </>
-        }
-      >
-        <Button
-          type="button"
-          variant="primary"
-          disabled={!identityReady || isVoting}
-          onClick={() => setCreateOpen(true)}
-        >
-          New proposal
-        </Button>
-      </EmptyState>
-    );
-  } else {
-    proposalBody = (
-      <Grid>
-        {safeProposals.map((p, i) => (
-          <ProposalCard
-            key={p.id}
-            index={i}
-            proposalId={p.id}
-            tally={p.tally}
-            isVoting={isVoting}
-            hasVoted={identityReady && checkHasVoted(String(p.id))}
-            disabled={!identityReady}
-            onVote={() => void runVoteWithToast(p.id)}
-          />
-        ))}
-      </Grid>
-    );
-  }
-
   return (
-    <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
+    <div style={{ minHeight: '100vh', backgroundColor: '#fff' }}>
       <Header>
         <div>
           <Caption>ShadowVote</Caption>
@@ -386,50 +116,26 @@ export default function DashboardPage() {
         </WalletPanel>
       </Header>
 
-      <Main>
-        <Toolbar>
-          <div>
-            <H2 css={{ margin: 0, marginBottom: '$2', fontSize: '$lg', color: '$black' }}>Proposals</H2>
-            <Body css={{ fontSize: '$sm', color: '$gray500', margin: 0 }}>
-              {identityReady ? 'Local voter identity is ready.' : 'Loading secure voter identity…'}
-            </Body>
-          </div>
-          <Button
-            type="button"
-            variant="primary"
-            disabled={!identityReady || isVoting}
-            onClick={() => setCreateOpen(true)}
-          >
-            New proposal
-          </Button>
-        </Toolbar>
-
-        {wallet?.error ? <Body css={{ color: '$red400', marginBottom: '$4' }}>{wallet.error}</Body> : null}
-
-        {syncError ? (
-          <SyncBanner
-            initial={{ opacity: 0, y: -6 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.35 }}
-          >
-            <Body css={{ fontSize: '$sm', color: '$gray600', margin: 0 }}>Live sync: {syncError}</Body>
-            <Button type="button" variant="secondary" onClick={() => clearSyncError()}>
-              Dismiss
-            </Button>
-          </SyncBanner>
+      <div
+        style={{
+          padding: '40px',
+          background: '#fef2f2',
+          border: '2px solid red',
+          color: 'black',
+        }}
+      >
+        <h1>DEBUG X-RAY VIEW</h1>
+        <pre style={{ fontSize: '14px' }}>
+          {JSON.stringify(
+            { isLoading: isLoading || false, proposalsCount: proposals?.length || 0, proposals: proposals || [] },
+            null,
+            2,
+          )}
+        </pre>
+        {(proposals?.length ?? 0) === 0 ? (
+          <EmptyState title="X-ray: EmptyState mount test" description="If you see this card, EmptyState renders." />
         ) : null}
-
-        <MainMotion initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.35, delay: 0.05 }}>
-          {proposalBody}
-        </MainMotion>
-      </Main>
-
-      <CreateProposalModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        onSubmit={handleCreateProposal}
-        isSubmitting={isVoting}
-      />
-    </PageShell>
+      </div>
+    </div>
   );
 }
