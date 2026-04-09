@@ -16,11 +16,11 @@ export type PastProposalRecord = {
   imageUrl: string;
 };
 
+/** Local banners under `public/past-proposals/` (bundled assets, no remote fetch). */
 const USER_HISTORY_IMAGES = [
-  'https://images.unsplash.com/photo-1639762681485-074b7f4fec07?w=500&q=80',
-  'https://images.unsplash.com/photo-1642104704074-907c8798cbd4?w=500&q=80',
-  'https://images.unsplash.com/photo-1640340434855-6084b1f4901c?w=500&q=80',
-  'https://images.unsplash.com/photo-1621761191319-6df1f6e3a74f?w=500&q=80',
+  '/past-proposals/card-strategic-finance.png',
+  '/past-proposals/card-tge-professional.png',
+  '/past-proposals/card-protocol-treasury.png',
 ] as const;
 
 function pickUserHistoryImage(seed: number): string {
@@ -58,7 +58,7 @@ export const MOCK_PAST_PROPOSALS: PastProposalRecord[] = [
     noVotes: 28,
     totalVotes: '3.29M',
     status: 'Proposal Passed',
-    imageUrl: 'https://images.unsplash.com/photo-1639762681485-074b7f4fec07?w=500&q=80',
+    imageUrl: '/past-proposals/card-strategic-finance.png',
   },
   {
     id: 'mock-xmq-04',
@@ -69,7 +69,7 @@ export const MOCK_PAST_PROPOSALS: PastProposalRecord[] = [
     noVotes: 39,
     totalVotes: '1.87M',
     status: 'Quorum Reached',
-    imageUrl: 'https://images.unsplash.com/photo-1642104704074-907c8798cbd4?w=500&q=80',
+    imageUrl: '/past-proposals/card-tge-professional.png',
   },
   {
     id: 'mock-xmq-03',
@@ -80,6 +80,6 @@ export const MOCK_PAST_PROPOSALS: PastProposalRecord[] = [
     noVotes: 16,
     totalVotes: '4.12M',
     status: 'Proposal Passed',
-    imageUrl: 'https://images.unsplash.com/photo-1640340434855-6084b1f4901c?w=500&q=80',
+    imageUrl: '/past-proposals/card-protocol-treasury.png',
   },
 ];
