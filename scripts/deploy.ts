@@ -58,9 +58,7 @@ async function main(): Promise<void> {
   console.log(
     `Merkle voter registry: ${authorizedLeaves.length} packed leaf(es); constructor voterRoot.field = ${voterRootField}`,
   );
-  console.log(
-    'Use the same leaf list in VOTER_REGISTRY_LEAVES_HEX / NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX for the app.',
-  );
+  console.log('Registry: config/voter-registry.json (deploy and app use the same Merkle leaves).');
 
   console.log('Deploying contract (ZK proofs)...');
 

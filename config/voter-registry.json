@@ -1,0 +1,25 @@
+{
+  "_readme": "Single source of truth for the ShadowVote voter Merkle tree. Replace leaves[0] with your Midnight Lace voter leaf (64 hex chars): open the dashboard with wallet connected and copy CURRENT VOTER LEAF from the browser console, then run npm run deploy again. Do not reorder leaves after deployment without redeploying.",
+  "leaves": [
+    "0d81e63c5f2255ca34a0806404bc49d39c2b9823492e9cbd0294b016482d93b5",
+    "2c36db44256170bd6f53708e878b8a813e00a3d6c642a571e05149fd12817f12",
+    "5b2852d541fc1ff2d5ba95c2f53b2b74be59a07fb27a52c5adca89a8d19b0202",
+    "88366ebfc18d198949f31084bf9c020076981ba13cf767eabea424341c00c8b8",
+    "f2c35f198970b9a6fb02ca6902be096f7eaa5df16ff41e074af41a47bc35170b",
+    "1307dcd01927d8f62a21b3a42219f6d472f7e6c0d25c5e385b2a555853cb286f",
+    "2231acab864fb923e5f8e67c14e49ba3a87d7819479afceef6be0008d346454e",
+    "7d6900c4d9f652277541169da02aecce87612a5907c62c14acfcfc983de8210f",
+    "504504dd4ef44d5964c69a271ca624129ab98d7ce71f96cbab5dd611725ee07d",
+    "4ee4c00be24cb9e78b497f7ab023184255e355d5fb78bef418c73fda768eaaa6",
+    "e4c1432872b25a3e37b3ceec650b589b12becb1f0be8da101ebb64351fe7dee9",
+    "b38959c482863e7fbeab5eae95923e9ebecadfabbe62de5dc2f02ec00fe97fdc",
+    "38a882755f0e564770ceceb76c526e2852cbdfde03b91e1721407c7c848332c0",
+    "ae7389fec8178e8c46bb716e3517d89b4b260a2c6b4999bd166cf82e39e7086b",
+    "a81208fc7e3c97f6e88705373f7b44b5773b3903cb19e31b6d3789ab3c33cb29",
+    "a52fb969ae3382c56d7244a62734cecb9ddff9152f725f23015ef6824be6153c",
+    "a8c6d11a156976f389d92602e30a5f9a7f21b8e4711277d1aac459ee2700c62c",
+    "af008c98fd7adddc515447d2d9ffab8364d6865ff98cc6e995dc49f041ed8711",
+    "cb78cf1028b3dea4286a4378397c2658a4062b8a1f09a36ed847f805b9c0beb3",
+    "f3648f68c09fd2da190c47ca7fa486b709ae838b94f66a6a857b70ecdaae9292"
+  ]
+}

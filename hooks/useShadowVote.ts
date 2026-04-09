@@ -9,7 +9,7 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
-import { getAuthorizedVoterLeavesWithDevBypass } from '@/lib/voterRegistry';
+import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
 import { MOCK_PAST_PROPOSALS } from '@/utils/mockData';
@@ -359,12 +359,12 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
         providersRef.current = providers;
 
-        const registryLeaves = getAuthorizedVoterLeavesWithDevBypass(voterSecret);
+        const registryLeaves = getAuthorizedVoterLeaves();
         const myLeaf = computeVoterLeafHash(voterSecret);
         const inRegistry = registryLeaves.some((L) => bytesEqual(L, myLeaf));
         if (!inRegistry) {
           throw new Error(
-            'Your voter leaf is not in NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX (or the dev default registry).',
+            'Your voter leaf is not in config/voter-registry.json — add your CURRENT VOTER LEAF (console) to `leaves` and redeploy.',
           );
         }
         const membershipPath = buildMerklePathWitness(myLeaf, registryLeaves);
