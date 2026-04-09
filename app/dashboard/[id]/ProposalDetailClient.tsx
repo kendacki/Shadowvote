@@ -115,26 +115,6 @@ const VoteButtonRow = styled('div', {
   alignItems: 'center',
 });
 
-const EPOCH_AWAITING_MSG = 'Registration received. Awaiting Admin epoch synchronization.';
-
-const EpochSyncBanner = styled(motion.div, {
-  width: '100%',
-  maxWidth: '520px',
-  padding: '$4 $5',
-  borderRadius: '$md',
-  border: '2px solid #F59E0B',
-  backgroundColor: 'rgba(245, 158, 11, 0.14)',
-});
-
-const EpochSyncBannerText = styled('p', {
-  margin: 0,
-  fontFamily: '$poppins',
-  fontWeight: '$semibold',
-  fontSize: '$sm',
-  lineHeight: 1.5,
-  color: '#92400E',
-});
-
 const VoteCastPill = styled(motion.div, {
   display: 'inline-flex',
   alignItems: 'center',
@@ -163,7 +143,7 @@ function applyVoteStageToast(
       toast.update(toastId, {
         variant: 'loading',
         title: 'Preparing',
-        message: 'Building Merkle witness and contract state…',
+        message: 'Preparing vote transaction…',
       });
       break;
     case 'proving':
@@ -241,11 +221,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const shadowVoteWalletCtx = useMemo(
-    () => ({ unshieldedAddress: wallet.unshieldedAddress }),
-    [wallet.unshieldedAddress],
-  );
-  const shadow = useShadowVote(api, identity?.voterSecret ?? null, shadowVoteWalletCtx);
+  const shadow = useShadowVote(api, identity?.voterSecret ?? null);
 
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
@@ -259,7 +235,6 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
 
   const hasVoted = identityReady && shadow.checkHasVoted(String(proposalId));
   const isSubmitting = shadow.isVoting;
-  const epochVoteBlocked = shadow.isAwaitingAdminEpochSync === true;
 
   const [recordedChoice, setRecordedChoice] = useState<'yes' | 'no' | null>(null);
   useEffect(() => {
@@ -411,27 +386,11 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
                   exit={{ opacity: 0, scale: 0.97 }}
                   transition={{ duration: 0.32, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {epochVoteBlocked ? (
-                    <EpochSyncBanner
-                      initial={{ opacity: 0, y: 4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.35 }}
-                      role="alert"
-                    >
-                      <EpochSyncBannerText>{EPOCH_AWAITING_MSG}</EpochSyncBannerText>
-                    </EpochSyncBanner>
-                  ) : null}
-                  <VoteButtonRow
-                    css={
-                      epochVoteBlocked
-                        ? { opacity: 0.5, pointerEvents: 'none' as const }
-                        : undefined
-                    }
-                  >
+                  <VoteButtonRow>
                     <Button
                       type="button"
                       variant="primary"
-                      disabled={!identityReady || isSubmitting || epochVoteBlocked}
+                      disabled={!identityReady || isSubmitting}
                       onClick={() => void runVoteWithToast(true)}
                     >
                       {isSubmitting ? 'Generating ZK proof — wallet opens next…' : 'Vote Yes'}
@@ -439,7 +398,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
                     <Button
                       type="button"
                       variant="secondary"
-                      disabled={!identityReady || isSubmitting || epochVoteBlocked}
+                      disabled={!identityReady || isSubmitting}
                       onClick={() => void runVoteWithToast(false)}
                     >
                       {isSubmitting ? 'Generating ZK proof — wallet opens next…' : 'Vote No'}
@@ -449,8 +408,8 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
               )}
             </AnimatePresence>
             <Body css={{ fontSize: '$sm', color: '$gray500', maxWidth: '480px', fontFamily: '$poppins', margin: 0 }}>
-              One anonymous vote per identity per proposal. Both choices submit the same ZK membership proof; your yes/no
-              preference is stored locally for this browser. The indexer updates the tally after confirmation.
+              One vote per browser identity per proposal (on-chain nullifier). Your yes/no choice is stored locally; the
+              tally updates after the transaction confirms.
             </Body>
           </Actions>
         </MainMotion>

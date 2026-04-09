@@ -1,14 +1,10 @@
 import * as fs from 'node:fs';
-import * as crypto from 'node:crypto';
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as Rx from 'rxjs';
 import { deployContract } from '@midnight-ntwrk/midnight-js-contracts';
 import { unshieldedToken } from '@midnight-ntwrk/ledger-v8';
 import type { FacadeState } from '@midnight-ntwrk/wallet-sdk-facade';
-import { getAuthorizedVoterLeaves } from '../lib/voterRegistry.js';
-import { computeAdminCredential } from '../utils/adminCredential.js';
-import { computeVoterRegistryRootField } from '../utils/merkle.js';
 import { createWallet, createProviders, createDeployWitnessStubs, loadCompiledContract } from './utils.js';
 
 function shadowvoteConstructorArgCountFromSource(): number {
@@ -34,20 +30,8 @@ function shadowvoteCtorParamCountFromBuild(): number {
   return Number(m[1]) - 1;
 }
 
-function resolveAdminPreimage(seedHex: string): Uint8Array {
-  const envHex = process.env.SHADOWVOTE_ADMIN_PREIMAGE_HEX?.trim();
-  if (envHex) {
-    const normalized = envHex.replace(/^0x/i, '');
-    if (!/^[0-9a-fA-F]{64}$/.test(normalized)) {
-      throw new Error('SHADOWVOTE_ADMIN_PREIMAGE_HEX must be exactly 64 hex characters');
-    }
-    return new Uint8Array(Buffer.from(normalized, 'hex'));
-  }
-  return new Uint8Array(crypto.createHash('sha256').update(Buffer.from(seedHex, 'hex')).digest());
-}
-
 async function main(): Promise<void> {
-  console.log('\nShadowVote — deployment\n');
+  console.log('\nShadowVote — deployment (Open DAO)\n');
 
   const seedHex = process.env.MIDNIGHT_SEED_HEX;
   if (!seedHex) {
@@ -71,30 +55,18 @@ async function main(): Promise<void> {
   const cleanCompiledContract = await loadCompiledContract();
   (cleanCompiledContract as { contractClass?: unknown }).contractClass = mod.Contract;
 
+  const baseProviders = await createProviders(walletCtx);
+
   const stubWitnesses = createDeployWitnessStubs();
   const correctWitnesses: Record<string, (context: { state: unknown }) => unknown> = {
     voterSecret: (context) => stubWitnesses.voterSecret(context as never),
-    voterMembershipPath: (context) => stubWitnesses.voterMembershipPath(context as never),
   };
-  if ('adminPreimage' in stubWitnesses) {
-    correctWitnesses.adminPreimage = (context) =>
-      stubWitnesses.adminPreimage!(context as never);
-  }
-
-  const baseProviders = await createProviders(walletCtx);
 
   const deploymentProviders = {
     ...baseProviders,
     ...correctWitnesses,
     witnesses: correctWitnesses,
   };
-
-  const authorizedLeaves = getAuthorizedVoterLeaves();
-  const voterRootField = computeVoterRegistryRootField(authorizedLeaves);
-  console.log(
-    `Merkle voter registry: ${authorizedLeaves.length} packed leaf(es); constructor voterRoot.field = ${voterRootField}`,
-  );
-  console.log('Registry: config/voter-registry.json (deploy and app use the same Merkle leaves).');
 
   console.log('Deploying contract (ZK proofs)...');
 
@@ -108,17 +80,7 @@ async function main(): Promise<void> {
     );
   }
 
-  const deployArgs =
-    ctorArity >= 2
-      ? (() => {
-          const adminPre = resolveAdminPreimage(seedHex);
-          const cred = computeAdminCredential(adminPre);
-          console.log(
-            'Admin credential committed on-chain. Use the same admin preimage when calling update_voter_root (SHADOWVOTE_ADMIN_PREIMAGE_HEX or seed-derived default printed in deployment.json).',
-          );
-          return [{ field: voterRootField }, cred];
-        })()
-      : [{ field: voterRootField }];
+  const deployArgs: unknown[] = ctorArity === 0 ? [] : [];
 
   try {
     const deployed = await deployContract(deploymentProviders as never, {
@@ -136,14 +98,8 @@ async function main(): Promise<void> {
       address: deployed.deployTxData.public.contractAddress,
       network: 'preprod',
       deployedAt: new Date().toISOString(),
-      voterRootField: voterRootField.toString(),
-      voterRegistryLeafCount: authorizedLeaves.length,
+      model: 'open-dao',
     };
-    if (ctorArity >= 2) {
-      const p = resolveAdminPreimage(seedHex);
-      deploymentRecord.adminCredentialHex = Buffer.from(computeAdminCredential(p)).toString('hex');
-      deploymentRecord.adminPreimageSource = process.env.SHADOWVOTE_ADMIN_PREIMAGE_HEX ? 'env' : 'sha256(seed)';
-    }
 
     fs.writeFileSync(path.join(process.cwd(), 'deployment.json'), JSON.stringify(deploymentRecord, null, 2));
   } catch (e: unknown) {

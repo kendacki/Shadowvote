@@ -9,27 +9,11 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
-import {
-  collectLeavesForRegisteredVotersRootSync,
-  fetchLeavesFromRegisteredVotersTable,
-  isWalletRegisteredForEpoch,
-  mergeRegisteredVotersLeavesForRootSync,
-} from '@/lib/voterLeavesSync';
-import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
-import { loadCompiledShadowVoteAdminContract } from '@/lib/loadCompiledShadowVoteAdmin';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
 import { MOCK_PAST_PROPOSALS } from '@/utils/mockData';
-import { supabase } from '@/utils/supabase';
 import { assertMinGovernanceBalance } from '@/utils/tNightGate';
 import { classifyVoteFailure, computeVoteNullifier, bytes32ToLowerHex } from '../utils/crypto';
-import {
-  buildMerklePathWitness,
-  bytesEqual,
-  computeVoterLeafHash,
-  computeVoterRegistryRootField,
-  computeVoterRegistryRootFieldAsync,
-} from '../utils/merkle';
 
 export type ProposalView = {
   id: number;
@@ -50,6 +34,14 @@ export type VoteTxStage =
 
 type ContractMod = typeof import('@shadowvote/contract');
 
+function nullifierSetFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): Set<string> {
+  const set = new Set<string>();
+  for (const n of ledgerView.nullifiers) {
+    set.add(bytes32ToLowerHex(n));
+  }
+  return set;
+}
+
 function proposalsFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): ProposalView[] {
   const out: ProposalView[] = [];
   for (const [id, tally] of ledgerView.proposals) {
@@ -59,24 +51,10 @@ function proposalsFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): Pro
   return out;
 }
 
-function nullifierSetFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): Set<string> {
-  const set = new Set<string>();
-  for (const n of ledgerView.nullifiers) {
-    set.add(bytes32ToLowerHex(n));
-  }
-  return set;
-}
-
-/** Stable fingerprint of public ledger view — skip React updates when the indexer repeats the same snapshot. */
-function ledgerSnapshotDigest(
-  proposals: ProposalView[],
-  nullifiers: Set<string>,
-  rootField: bigint | null,
-): string {
+function ledgerSnapshotDigest(proposals: ProposalView[], nullifiers: Set<string>): string {
   const p = proposals.map((x) => `${x.id}:${x.tally}`).join('\u001f');
   const n = [...nullifiers].sort().join('\u001f');
-  const r = rootField === null ? '' : String(rootField);
-  return `${p}\u001e${n}\u001e${r}`;
+  return `${p}\u001e${n}`;
 }
 
 const PENDING_PROPOSAL_IDS_KEY = 'shadowvote.pendingProposalIds.v1';
@@ -116,10 +94,6 @@ function writePendingProposalIds(ids: number[]) {
   }
 }
 
-/**
- * `getPublicStates` returns on-chain-runtime {@link ContractState}; `@shadowvote/contract` `ledger()` expects
- * {@link StateValue} or {@link ChargedState} (it reads `.state` only on the latter — `ContractState` uses `.data`).
- */
 function contractStateArgForLedgerView(state: ContractState): ChargedState | StateValue {
   const withData = state as ContractState & { data?: ChargedState };
   if (withData.data != null) {
@@ -128,84 +102,34 @@ function contractStateArgForLedgerView(state: ContractState): ChargedState | Sta
   return state as unknown as ChargedState;
 }
 
-/** Single `@shadowvote/contract` import + `ledger()` call per indexer emission (was doubling work). */
 async function ledgerSnapshotFromContractState(contractState: ContractState): Promise<{
   proposals: ProposalView[];
   nullifiers: Set<string>;
-  rootField: bigint | null;
 }> {
   const mod: ContractMod = await import('@shadowvote/contract');
   const ledgerView = mod.ledger(contractStateArgForLedgerView(contractState) as unknown as StateValue);
-  let rootField: bigint | null = null;
-  try {
-    rootField = ledgerView.voterRoot.field;
-  } catch {
-    rootField = null;
-  }
   return {
     proposals: proposalsFromLedger(ledgerView),
     nullifiers: nullifierSetFromLedger(ledgerView),
-    rootField,
   };
 }
 
-/** Optional wallet surface for epoch / Supabase gating (e.g. unshielded bech32). */
-export type ShadowVoteWalletContext = {
-  unshieldedAddress: string | null;
-};
-
 /**
- * @param voterSecret - 32-byte persistent secret from {@link useVoterIdentity}; required for witness injection.
- * @param walletCtx - When set, enables Supabase epoch sync and “awaiting admin” gating for registered voters.
+ * @param voterSecret - 32-byte persistent secret from {@link useVoterIdentity}; used for on-chain nullifiers.
  */
-export function useShadowVote(
-  connectedApi: ConnectedAPI | null,
-  voterSecret: Uint8Array | null,
-  walletCtx?: ShadowVoteWalletContext | null,
-) {
-  /** Ledger-derived proposals only (map entries). */
+export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Uint8Array | null) {
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
-  /** User-added ids before the first on-chain vote materializes in public state. */
   const [pendingProposalIds, setPendingProposalIds] = useState<number[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
-  const [isSyncingRegistry, setIsSyncingRegistry] = useState(false);
-  const [chainVoterRootField, setChainVoterRootField] = useState<bigint | null>(null);
-  /** False when rebuilt Supabase Merkle root differs from on-chain `voterRoot`. */
-  const [isEpochSynced, setIsEpochSynced] = useState(true);
-  /**
-   * True when this wallet is in `registered_voters`, the epoch is not synced on-chain,
-   * and the user is not covered by the legacy `voter-registry.json` tree that still matches the chain.
-   */
-  const [isAwaitingAdminEpochSync, setIsAwaitingAdminEpochSync] = useState(false);
-  const [epochSyncLoading, setEpochSyncLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [syncError, setSyncError] = useState<string | null>(null);
-  /** Bumps when on-chain nullifier set updates (drives `checkHasVoted` re-renders). */
   const [nullifierEpoch, setNullifierEpoch] = useState(0);
   const nullifiersRef = useRef<Set<string>>(new Set());
   const providersRef = useRef<Awaited<ReturnType<typeof createShadowVoteProviders>> | null>(null);
   const chainProposalsRef = useRef<ProposalView[]>([]);
-  /** Invalidate in-flight `applyContractState` work after reconnect / unmount; drop stale async results. */
   const applyLedgerGenerationRef = useRef(0);
-  /** Last applied public snapshot — avoid re-rendering on duplicate indexer emissions. */
   const lastLedgerDigestRef = useRef<string | null>(null);
-  /** Ref mirrors for epoch sync — avoids unstable `useCallback` deps that retrigger effects every render. */
-  const connectedApiRef = useRef<ConnectedAPI | null>(connectedApi);
-  const chainVoterRootFieldRef = useRef<bigint | null>(chainVoterRootField);
-  const voterSecretRef = useRef<Uint8Array | null>(voterSecret);
-  const unshieldedAddressRef = useRef<string>(walletCtx?.unshieldedAddress?.trim() ?? '');
-  connectedApiRef.current = connectedApi;
-  chainVoterRootFieldRef.current = chainVoterRootField;
-  voterSecretRef.current = voterSecret;
-  unshieldedAddressRef.current = walletCtx?.unshieldedAddress?.trim() ?? '';
-
-  const voterSecretFingerprint = useMemo(() => {
-    if (!voterSecret || voterSecret.length !== 32) return '';
-    return bytes32ToLowerHex(voterSecret);
-  }, [voterSecret]);
-  const chainRootKey = chainVoterRootField === null ? null : String(chainVoterRootField);
-  const unshieldedAddressKey = walletCtx?.unshieldedAddress?.trim() ?? '';
 
   useEffect(() => {
     chainProposalsRef.current = chainProposals;
@@ -235,7 +159,6 @@ export function useShadowVote(
     return merged;
   }, [chainProposals, pendingProposalIds]);
 
-  /** Simulated off-chain index (e.g. Supabase) merged into the active set — extend when wired. */
   const fetchGlobalProposals = useCallback(async (): Promise<ProposalView[]> => {
     await new Promise<void>((resolve) => {
       window.setTimeout(resolve, 280);
@@ -249,10 +172,6 @@ export function useShadowVote(
     if (!connectedApi) {
       applyLedgerGenerationRef.current += 1;
       lastLedgerDigestRef.current = null;
-      setChainVoterRootField(null);
-      setIsEpochSynced(true);
-      setIsAwaitingAdminEpochSync(false);
-      setEpochSyncLoading(false);
       setGlobalProposals([]);
       return;
     }
@@ -270,7 +189,6 @@ export function useShadowVote(
     };
   }, [connectedApi, fetchGlobalProposals]);
 
-  /** Active proposals: on-chain + pending + global off-chain overlay (same id merges by max tally). */
   const allProposals = useMemo(() => {
     const byId = new Map<number, ProposalView>();
     for (const p of proposals) {
@@ -289,19 +207,16 @@ export function useShadowVote(
     return out;
   }, [proposals, globalProposals]);
 
-  /** Static mock cards only; dashboard merges Supabase `Ended` / `Passed` rows separately. */
   const allPastProposals = useMemo(() => [...MOCK_PAST_PROPOSALS], []);
 
   const applyContractState = useCallback(async (contractState: ContractState) => {
     const gen = ++applyLedgerGenerationRef.current;
-    const { proposals: next, nullifiers: nextNulls, rootField } = await ledgerSnapshotFromContractState(
-      contractState,
-    );
+    const { proposals: next, nullifiers: nextNulls } = await ledgerSnapshotFromContractState(contractState);
     if (gen !== applyLedgerGenerationRef.current) return;
 
     setSyncError(null);
 
-    const digest = ledgerSnapshotDigest(next, nextNulls, rootField);
+    const digest = ledgerSnapshotDigest(next, nextNulls);
     if (digest === lastLedgerDigestRef.current) {
       return;
     }
@@ -309,7 +224,6 @@ export function useShadowVote(
 
     setChainProposals(next);
     nullifiersRef.current = nextNulls;
-    setChainVoterRootField(rootField);
     setNullifierEpoch((e) => e + 1);
   }, []);
 
@@ -324,13 +238,11 @@ export function useShadowVote(
     });
   }, []);
 
-  /** Live indexer sync: WebSocket stream + 12s polling fallback. */
   useEffect(() => {
     if (!connectedApi) {
       setIsLoadingProposals(false);
       return;
     }
-    /** True until first pull finishes — avoids flashing “empty” while providers/indexer initialize. */
     setIsLoadingProposals(true);
     let sub: Subscription | undefined;
     let interval: ReturnType<typeof setInterval> | undefined;
@@ -388,84 +300,6 @@ export function useShadowVote(
     };
   }, [connectedApi, applyContractState]);
 
-  const checkEpochSync = useCallback(async () => {
-    const api = connectedApiRef.current;
-    const chainRoot = chainVoterRootFieldRef.current;
-    const vs = voterSecretRef.current;
-    const addr = unshieldedAddressRef.current;
-
-    if (!api || chainRoot === null) {
-      return;
-    }
-    if (!supabase) {
-      setIsEpochSynced(true);
-      setIsAwaitingAdminEpochSync(false);
-      return;
-    }
-    setEpochSyncLoading(true);
-    try {
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-      });
-      const ordered = await fetchLeavesFromRegisteredVotersTable();
-      const leavesMerged = mergeRegisteredVotersLeavesForRootSync(ordered, null);
-      const rootMerged = await computeVoterRegistryRootFieldAsync(leavesMerged);
-      const dbOnlyRoot =
-        ordered.length > 0 ? await computeVoterRegistryRootFieldAsync(ordered) : null;
-      const synced = rootMerged === chainRoot || (dbOnlyRoot !== null && dbOnlyRoot === chainRoot);
-      setIsEpochSynced(synced);
-
-      let inSupabase = false;
-      if (addr) {
-        inSupabase = await isWalletRegisteredForEpoch(addr);
-      }
-
-      let legacyJsonMatchesChain = false;
-      if (vs != null && vs.length === 32) {
-        try {
-          const jsonLeaves = getAuthorizedVoterLeaves();
-          const jsonRoot = await computeVoterRegistryRootFieldAsync(jsonLeaves);
-          if (jsonRoot === chainRoot) {
-            const myLeaf = computeVoterLeafHash(vs);
-            legacyJsonMatchesChain = jsonLeaves.some((L) => bytesEqual(L, myLeaf));
-          }
-        } catch {
-          legacyJsonMatchesChain = false;
-        }
-      }
-
-      const awaiting = !synced && inSupabase && !legacyJsonMatchesChain;
-      setIsAwaitingAdminEpochSync(awaiting);
-    } catch (e: unknown) {
-      console.warn('[ShadowVote] checkEpochSync failed', e);
-      setIsEpochSynced(true);
-      setIsAwaitingAdminEpochSync(false);
-    } finally {
-      setEpochSyncLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!connectedApi || chainRootKey === null) {
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(() => {
-      void (async () => {
-        if (cancelled) return;
-        try {
-          await checkEpochSync();
-        } catch (e: unknown) {
-          console.warn('[ShadowVote] scheduled checkEpochSync rejected', e);
-        }
-      })();
-    }, 600);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [connectedApi, chainRootKey, unshieldedAddressKey, voterSecretFingerprint, checkEpochSync]);
-
   const fetchProposals = useCallback(async (): Promise<ProposalView[]> => {
     setError(null);
     if (!connectedApi) {
@@ -492,10 +326,6 @@ export function useShadowVote(
     }
   }, [connectedApi, applyContractState]);
 
-  /**
-   * Whether the current voter's nullifier is already in public state for this `proposalId`.
-   * Reflects the latest synced ledger (RxJS + polling). Requires `voterSecret`.
-   */
   const checkHasVoted = useCallback(
     (proposalId: string): boolean => {
       void nullifierEpoch;
@@ -543,22 +373,8 @@ export function useShadowVote(
         const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
         providersRef.current = providers;
 
-        const registryLeaves = getAuthorizedVoterLeaves();
-        const myLeaf = computeVoterLeafHash(voterSecret);
-        const inRegistry = registryLeaves.some((L) => bytesEqual(L, myLeaf));
-        if (!inRegistry) {
-          console.log(
-            'CURRENT VOTER LEAF — add to config/voter-registry.json `leaves`, then redeploy or admin sync root:',
-            `0x${bytes32ToLowerHex(myLeaf)}`,
-          );
-          throw new Error(
-            'Your voter leaf is not in config/voter-registry.json — add the hex above to `leaves`, then redeploy or update the on-chain root (admin).',
-          );
-        }
-        const membershipPath = buildMerklePathWitness(myLeaf, registryLeaves);
-
         onStage?.('proving');
-        const compiledContract = await loadCompiledShadowVoteContract(voterSecret, membershipPath);
+        const compiledContract = await loadCompiledShadowVoteContract(voterSecret);
 
         const found = await findDeployedContract(providers as never, {
           compiledContract: compiledContract as never,
@@ -589,103 +405,6 @@ export function useShadowVote(
     [connectedApi, voterSecret, fetchProposals],
   );
 
-  /**
-   * Submit `update_voter_root` with an already computed Merkle root field (mutable Compact circuit).
-   */
-  const submitUpdateVoterRoot = useCallback(
-    async (
-      rootField: bigint,
-      adminPreimage32: Uint8Array,
-      onStage: ((stage: VoteTxStage) => void) | undefined,
-      loadingMode: 'vote' | 'sync',
-    ) => {
-      setError(null);
-      if (!connectedApi) {
-        onStage?.('failed');
-        throw new Error('Wallet not connected');
-      }
-      try {
-        await assertMinGovernanceBalance(connectedApi);
-      } catch (e: unknown) {
-        const kind = classifyVoteFailure(e);
-        if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
-        else onStage?.('failed');
-        throw e;
-      }
-      if (loadingMode === 'vote') setIsVoting(true);
-      else setIsSyncingRegistry(true);
-      try {
-        onStage?.('preparing');
-        const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
-        providersRef.current = providers;
-        const compiled = await loadCompiledShadowVoteAdminContract(adminPreimage32);
-        onStage?.('proving');
-        const found = await findDeployedContract(providers as never, {
-          compiledContract: compiled as never,
-          contractAddress: SHADOWVOTE_ADDRESS,
-          privateStateId: SHADOWVOTE_PRIVATE_STATE_ID,
-          initialPrivateState: {},
-        });
-        const callTx = found.callTx as typeof found.callTx & {
-          update_voter_root?: (digest: { field: bigint }) => Promise<unknown>;
-        };
-        if (typeof callTx.update_voter_root !== 'function') {
-          throw new Error(
-            'This deployment uses an older ShadowVote contract — run npm run compile:contract, deploy again, and sync ZK artifacts (zk:public).',
-          );
-        }
-        onStage?.('submitting');
-        await callTx.update_voter_root({ field: rootField });
-        onStage?.('confirmed');
-        await fetchProposals();
-      } catch (e: unknown) {
-        const kind = classifyVoteFailure(e);
-        if (kind === 'user_rejected') onStage?.('failed_user_rejected');
-        else if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
-        else if (kind === 'network') onStage?.('failed_network');
-        else onStage?.('failed');
-        setError(e instanceof Error ? e.message : 'update_voter_root failed');
-        throw e;
-      } finally {
-        if (loadingMode === 'vote') setIsVoting(false);
-        else setIsSyncingRegistry(false);
-      }
-    },
-    [connectedApi, fetchProposals],
-  );
-
-  const updateVoterRootFromRegistry = useCallback(
-    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
-      const leaves = getAuthorizedVoterLeaves();
-      const rootField = computeVoterRegistryRootField(leaves);
-      await submitUpdateVoterRoot(rootField, adminPreimage32, onStage, 'vote');
-    },
-    [submitUpdateVoterRoot],
-  );
-
-  /**
-   * Builds the Merkle root from Supabase `registered_voters.voter_leaf` (plus admin fallback leaf),
-   * then calls `update_voter_root` on-chain.
-   */
-  const syncVoterRegistry = useCallback(
-    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
-      onStage?.('preparing');
-      const adminLeaf =
-        voterSecret && voterSecret.length === 32 ? computeVoterLeafHash(voterSecret) : null;
-      const leaves = await collectLeavesForRegisteredVotersRootSync(adminLeaf);
-      if (leaves.length === 0) {
-        const msg =
-          'No voter leaves in registered_voters — register voters from the dashboard or insert rows in Supabase.';
-        setError(msg);
-        onStage?.('failed');
-        throw new Error(msg);
-      }
-      const newRoot = computeVoterRegistryRootField(leaves);
-      await submitUpdateVoterRoot(newRoot, adminPreimage32, onStage, 'sync');
-    },
-    [submitUpdateVoterRoot, voterSecret],
-  );
-
   return {
     proposals,
     allProposals,
@@ -694,16 +413,9 @@ export function useShadowVote(
     registerPendingProposal,
     fetchProposals,
     castVote,
-    updateVoterRootFromRegistry,
-    syncVoterRegistry,
     checkHasVoted,
     isLoadingProposals,
     isVoting,
-    isSyncingRegistry,
-    isEpochSynced,
-    isAwaitingAdminEpochSync,
-    epochSyncLoading,
-    checkEpochSync,
     error,
     syncError,
     clearError: () => setError(null),

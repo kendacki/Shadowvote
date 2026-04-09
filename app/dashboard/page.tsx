@@ -1,7 +1,5 @@
 "use client";
 
-import { AdminPanel } from '@/components/AdminPanel';
-import { RegisterToVote } from '@/components/RegisterToVote';
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -218,18 +216,13 @@ export default function DashboardPage() {
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const shadowVoteWalletCtx = useMemo(
-    () => ({ unshieldedAddress: wallet.unshieldedAddress }),
-    [wallet.unshieldedAddress],
-  );
-  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null, shadowVoteWalletCtx);
+  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null);
   const { offChainProposals } = useSupabaseSync();
 
   const proposals = shadowVote?.proposals;
   const isLoading = shadowVote?.isLoadingProposals ?? false;
   const shadowError = shadowVote?.error ?? null;
   const isVoting = shadowVote?.isVoting ?? false;
-  const isSyncingRegistry = shadowVote?.isSyncingRegistry ?? false;
   const syncError = shadowVote?.syncError ?? null;
   const clearShadowError = shadowVote?.clearError ?? (() => {});
   const clearSyncError = shadowVote?.clearSyncError ?? (() => {});
@@ -427,7 +420,7 @@ export default function DashboardPage() {
     proposalBody = (
       <EmptyState
         onOpenModal={() => setIsModalOpen(true)}
-        disabled={!identityReady || isVoting || isSyncingRegistry}
+        disabled={!identityReady || isVoting}
       />
     );
   } else if (searchNormalized) {
@@ -477,12 +470,11 @@ export default function DashboardPage() {
               <Button
                 type="button"
                 variant="primary"
-                disabled={!identityReady || isVoting || isSyncingRegistry}
+                disabled={!identityReady || isVoting}
                 onClick={() => setIsModalOpen(true)}
               >
                 New Proposal
               </Button>
-              <RegisterToVote syncBusy={isVoting || isSyncingRegistry} />
             </HeroButtonGroup>
             <SearchRow>
               <SearchBar value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
@@ -521,11 +513,6 @@ export default function DashboardPage() {
                   ))}
             </PastGrid>
           </PastSection>
-
-          <AdminPanel
-            syncVoterRegistry={shadowVote.syncVoterRegistry}
-            isSyncingRegistry={isSyncingRegistry}
-          />
         </motion.div>
       </DashboardContainer>
 

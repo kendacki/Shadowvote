@@ -1,9 +1,9 @@
 // =============================================================================
-// ShadowVote — Zero-knowledge governance (Midnight Compact)
+// ShadowVote — Open DAO governance (Midnight Compact)
 // =============================================================================
-// Public state: per-proposal tallies, spent nullifiers, authorized-voter Merkle root
-// (updatable by admin), and a sealed admin credential hash. Private inputs for voting:
-// voter secret + Merkle path. Admin updates use `adminPreimage` witness vs `adminCommitment`.
+// Public state: per-proposal tallies and spent nullifiers. Anyone with the
+// private voter secret can produce a unique nullifier per proposal; double
+// votes are rejected on-chain. Frontend gates participation by tNIGHT balance.
 // =============================================================================
 
 pragma language_version 0.22;
@@ -15,41 +15,20 @@ import CompactStandardLibrary;
 // -----------------------------------------------------------------------------
 export ledger proposals: Map<Uint<32>, Uint<32>>;
 export ledger nullifiers: Set<Bytes<32>>;
-export ledger voterRoot: MerkleTreeDigest;
-export sealed ledger adminCommitment: Bytes<32>;
 
 // -----------------------------------------------------------------------------
 // Constructor
 // -----------------------------------------------------------------------------
-constructor(initialVoterRoot: MerkleTreeDigest, initialAdminCommitment: Bytes<32>) {
-  voterRoot = disclose(initialVoterRoot);
-  adminCommitment = disclose(initialAdminCommitment);
-}
+constructor() {}
 
 // -----------------------------------------------------------------------------
 // Private witnesses
 // -----------------------------------------------------------------------------
 witness voterSecret(): Bytes<32>;
-witness voterMembershipPath(): MerkleTreePath<20, Bytes<32>>;
-witness adminPreimage(): Bytes<32>;
 
 // -----------------------------------------------------------------------------
 // Internal circuits
 // -----------------------------------------------------------------------------
-circuit voterLeafHash(secret: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([
-    pad(32, "shadowvote:voter:leaf:v1"),
-    secret,
-  ]);
-}
-
-circuit adminCredentialHash(preimage: Bytes<32>): Bytes<32> {
-  return persistentHash<Vector<2, Bytes<32>>>([
-    pad(32, "shadowvote:admin:cred:v1"),
-    preimage,
-  ]);
-}
-
 circuit computeNullifier(secret: Bytes<32>, proposalId: Uint<32>): Bytes<32> {
   return persistentHash<Vector<3, Bytes<32>>>([
     pad(32, "shadowvote:nullifier:v1"),
@@ -63,15 +42,7 @@ circuit computeNullifier(secret: Bytes<32>, proposalId: Uint<32>): Bytes<32> {
 // -----------------------------------------------------------------------------
 export circuit vote(proposalId: Uint<32>): [] {
   const pid = disclose(proposalId);
-
   const sk = voterSecret();
-  const path = voterMembershipPath();
-
-  assert(path.leaf == voterLeafHash(sk), "ShadowVote: leaf does not match secret");
-
-  const computedRoot = merkleTreePathRoot<20, Bytes<32>>(path);
-  assert(computedRoot.field == voterRoot.read().field, "ShadowVote: invalid Merkle proof");
-
   const nullifier = disclose(computeNullifier(sk, pid));
   assert(!nullifiers.member(nullifier), "ShadowVote: nullifier already spent");
 
@@ -83,13 +54,4 @@ export circuit vote(proposalId: Uint<32>): [] {
   } else {
     proposals.insert(pid, 1);
   }
-}
-
-export circuit update_voter_root(newRoot: MerkleTreeDigest): [] {
-  const p = adminPreimage();
-  assert(
-    adminCredentialHash(p) == adminCommitment.read(),
-    "ShadowVote: not authorized to update voter root",
-  );
-  voterRoot = disclose(newRoot);
 }
