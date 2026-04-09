@@ -1,11 +1,11 @@
 # ShadowVote
 
-Private, Sybil-resistant governance on **Midnight**: prove voter eligibility in zero knowledge, cast votes through **Lace**, and watch tallies update in real time—without exposing wallet identities on-chain.
+Private governance on **Midnight**: token-gated participation, zero-knowledge votes through **Lace**, and tallies in real time—without linking votes to wallet addresses on-chain.
 
 ## Features
 
 - **ZK voting** — Compact contract (`contracts/shadowvote.compact`) with local proof generation via Midnight JS and your configured ZK artifacts.
-- **Merkle membership** — Depth-20 voter tree using Midnight `persistentHash` / `transientHash` semantics (`utils/merkle.ts`); constructor `voterRoot` must match the deployed registry.
+- **Open DAO (no registry)** — Voting does not use a Merkle allowlist or Supabase `registered_voters`. Eligibility is enforced in the app via **minimum unshielded tNIGHT** before a local voter secret is used for ZK proofs.
 - **Sybil resistance** — Per-(secret, proposal) nullifiers on the public ledger; the app computes nullifiers locally and surfaces **Vote cast** when your nullifier appears (`utils/crypto.ts`).
 - **Live sync** — Contract state stream (RxJS) plus polling fallback in `useShadowVote` so tallies and nullifier sets stay current.
 - **Network awareness** — Amber banner on non-mainnet builds (`components/NetworkBanner.tsx`, `config/network.ts`).
@@ -83,8 +83,8 @@ Copy `.env.example` to `.env` and fill at least:
 | `NEXT_PUBLIC_SHADOWVOTE_CONTRACT_ADDRESS` | Deployed ledger address (hex). |
 | `NEXT_PUBLIC_MIDNIGHT_PRIVATE_STATE_PASSWORD` | **≥16 chars** — Level.js private-state store (browser). |
 | `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` or `NEXT_PUBLIC_MIDNIGHT_NETWORK` | e.g. `preprod` (banner uses the logical network). |
-| `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` | URL or path to published ZK assets (default `/shadowvote-zk` after `npm run zk:public`). | NEXT_PUBLIC_SUPABASE_URL | NEXT_PUBLIC_SUPABASE_ANON_KEY
-| `VOTER_REGISTRY_LEAVES_HEX` / `NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX` | Comma-separated **leaf** hashes (`voterLeafHash`); must match deploy `voterRoot`. |
+| `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` | URL or path to published ZK assets (default `/shadowvote-zk` after `npm run zk:public`). |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional: off-chain proposal “waiting room” (`public.proposals`). |
 
 See `.env.example` for indexer URLs, deploy seed, and proof server host.
 
@@ -122,7 +122,7 @@ With wallet seed and proof server up:
 npm run deploy
 ```
 
-Writes `deployment.json` including `voterRootField` — keep registry env vars in sync.
+Writes `deployment.json` (contract address, `model: open-dao`, timestamp).
 
 ## Production build
 
@@ -157,10 +157,10 @@ config/           Network tier helpers
 contexts/         Toast provider
 contracts/        Compact sources
 hooks/            Wallet, identity, ShadowVote / indexer sync
-lib/              Providers, contract load, voter registry
+lib/              Providers, contract loader
 public/           Static assets + shadowvote-zk after zk:public
 scripts/          deploy.ts, compile helpers
-utils/            Merkle tree, nullifier crypto
+utils/            Nullifier / voting crypto helpers
 build/            Generated contract + zkir (after compile)
 ```
 
