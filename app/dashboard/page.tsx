@@ -6,15 +6,13 @@ import { LoadingScreen } from '@/components/LoadingScreen';
 import { ProposalCard } from '@/components/ProposalCard';
 import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
-import { useToast } from '@/contexts/ToastContext';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
-import { useShadowVote, type VoteTxStage } from '@/hooks/useShadowVote';
+import { useShadowVote } from '@/hooks/useShadowVote';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
-
 const PageShell = styled(motion.div, {
   flex: 1,
   display: 'flex',
@@ -127,77 +125,8 @@ function LoadingSkeleton() {
   );
 }
 
-function applyVoteStageToast(
-  toast: ReturnType<typeof useToast>,
-  toastId: string,
-  proposalId: number,
-  stage: VoteTxStage,
-) {
-  switch (stage) {
-    case 'preparing':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Preparing',
-        message: 'Setting up providers and contract state…',
-      });
-      break;
-    case 'proving':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Generating ZK proof',
-        message: 'Proving circuit in your browser — this can take a while.',
-      });
-      break;
-    case 'submitting':
-      toast.update(toastId, {
-        variant: 'loading',
-        title: 'Submitting to network',
-        message: 'Balancing and relaying the transaction via Lace.',
-      });
-      break;
-    case 'confirmed':
-      toast.update(toastId, {
-        variant: 'success',
-        title: 'Confirmed',
-        message: `Vote recorded for proposal #${proposalId}.`,
-      });
-      break;
-    case 'failed_user_rejected':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Transaction cancelled',
-        message: 'The wallet did not sign or submit the transaction.',
-      });
-      break;
-    case 'failed_already_voted':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Already voted',
-        message: `Your identity already cast a vote on proposal #${proposalId}. Nullifier is spent on-chain.`,
-      });
-      break;
-    case 'failed_network':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Network error',
-        message: 'Could not complete the request. Check your connection and try again.',
-      });
-      break;
-    case 'failed':
-      toast.update(toastId, {
-        variant: 'error',
-        title: 'Failed',
-        message: 'The transaction did not complete. See the message below.',
-      });
-      break;
-    default:
-      break;
-  }
-}
-
 export default function DashboardPage() {
   const router = useRouter();
-  const toast = useToast();
   const wallet = useMidnightWallet();
   const api = wallet?.getConnectedApi?.() ?? null;
   const identity = useVoterIdentity();
@@ -218,21 +147,10 @@ export default function DashboardPage() {
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
 
-  const runVoteWithToast = useCallback(
-    async (proposalId: number) => {
-      const cast = shadowVote?.castVote;
-      if (typeof cast !== 'function') {
-        console.error('DashboardPage: castVote is not available');
-        return;
-      }
-      const toastId = toast.loading('Preparing', 'Initializing transaction…');
-      await cast(proposalId, (stage: VoteTxStage) => applyVoteStageToast(toast, toastId, proposalId, stage));
-    },
-    [shadowVote, toast],
-  );
+  const registerPending = shadowVote?.registerPendingProposal;
 
   const handleCreateProposal = useCallback(
-    async ({ proposalId, title }: { proposalId: number; title: string }) => {
+    ({ proposalId, title }: { proposalId: number; title: string }) => {
       if (title) {
         try {
           const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
@@ -243,14 +161,10 @@ export default function DashboardPage() {
           /* ignore */
         }
       }
-      try {
-        await runVoteWithToast(proposalId);
-        setIsModalOpen(false);
-      } catch {
-        /* Toast already shows failure; keep modal open for retry */
-      }
+      registerPending?.(proposalId);
+      setIsModalOpen(false);
     },
-    [runVoteWithToast],
+    [registerPending],
   );
 
   if (wallet?.isLoading) {
@@ -287,7 +201,7 @@ export default function DashboardPage() {
   }
 
   let proposalBody: ReactNode;
-  if (isLoading) {
+  if (isLoading && safeProposals.length === 0) {
     proposalBody = <LoadingSkeleton />;
   } else if (shadowError) {
     proposalBody = (

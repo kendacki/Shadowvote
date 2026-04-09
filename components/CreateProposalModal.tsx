@@ -5,6 +5,7 @@ import { Body, Caption, H2 } from '@/components/Typography';
 import { styled } from '@/stitches.config';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useCallback, useEffect, useId, useState } from 'react';
+import { createPortal } from 'react-dom';
 
 const Backdrop = styled(motion.div, {
   position: 'fixed',
@@ -93,6 +94,12 @@ export function CreateProposalModal({
   const idFieldId = useId();
   const [title, setTitle] = useState('');
   const [proposalIdRaw, setProposalIdRaw] = useState('');
+  /** Portals attach after mount so SSR/hydration never targets a missing `document.body`. */
+  const [portalReady, setPortalReady] = useState(false);
+
+  useEffect(() => {
+    setPortalReady(true);
+  }, []);
 
   useEffect(() => {
     if (!visible) {
@@ -114,10 +121,11 @@ export function CreateProposalModal({
     Number.isFinite(Number.parseInt(proposalIdRaw.trim(), 10)) &&
     Number.parseInt(proposalIdRaw.trim(), 10) >= 0;
 
-  return (
+  const tree = (
     <AnimatePresence>
       {visible ? (
         <Backdrop
+          key="shadowvote-create-proposal"
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
@@ -131,6 +139,7 @@ export function CreateProposalModal({
             exit={{ opacity: 0, scale: 0.96, y: 8 }}
             transition={{ type: 'spring', stiffness: 380, damping: 30 }}
             onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-labelledby={headingId}
@@ -140,8 +149,9 @@ export function CreateProposalModal({
               New proposal
             </H2>
             <Body css={{ marginBottom: '$5', fontSize: '$sm' }}>
-              On this contract, a proposal is registered on-chain when it receives its first vote. Submitting here runs
-              the same ZK vote flow for your chosen numeric ID (title is stored locally for your reference only).
+              This contract registers a proposal on the ledger when it receives its first vote. Add an ID here to pin a
+              card on your dashboard (tally stays 0 until someone casts the opening vote). The title is stored locally
+              for your reference.
             </Body>
 
             <Field>
@@ -179,7 +189,7 @@ export function CreateProposalModal({
                 disabled={!validId || isSubmitting}
                 onClick={() => void handleSubmit()}
               >
-                {isSubmitting ? 'Submitting…' : 'Submit Proposal'}
+                {isSubmitting ? 'Adding…' : 'Add to dashboard'}
               </Button>
             </Actions>
           </Dialog>
@@ -187,4 +197,10 @@ export function CreateProposalModal({
       ) : null}
     </AnimatePresence>
   );
+
+  if (!portalReady || typeof document === 'undefined') {
+    return null;
+  }
+
+  return createPortal(tree, document.body);
 }

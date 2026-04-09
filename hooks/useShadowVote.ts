@@ -3,7 +3,7 @@
 import { findDeployedContract, getPublicStates } from '@midnight-ntwrk/midnight-js-contracts';
 import type { ContractState, StateValue } from '@midnight-ntwrk/compact-runtime';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Subscription } from 'rxjs';
 import { createShadowVoteProviders, type ShadowVoteCircuitId } from '@/lib/createShadowVoteProviders';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
@@ -51,6 +51,31 @@ function nullifierSetFromLedger(ledgerView: ReturnType<ContractMod['ledger']>): 
   return set;
 }
 
+const PENDING_PROPOSAL_IDS_KEY = 'shadowvote.pendingProposalIds.v1';
+
+function readPendingProposalIds(): number[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(PENDING_PROPOSAL_IDS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((x) => (typeof x === 'number' ? x : Number(x)))
+      .filter((n) => Number.isFinite(n) && n >= 0 && n <= 0xffffffff);
+  } catch {
+    return [];
+  }
+}
+
+function writePendingProposalIds(ids: number[]) {
+  try {
+    localStorage.setItem(PENDING_PROPOSAL_IDS_KEY, JSON.stringify(ids));
+  } catch {
+    /* ignore */
+  }
+}
+
 async function ledgerFromContractState(contractState: ContractState): Promise<{
   proposals: ProposalView[];
   nullifiers: Set<string>;
@@ -67,7 +92,10 @@ async function ledgerFromContractState(contractState: ContractState): Promise<{
  * @param voterSecret - 32-byte persistent secret from {@link useVoterIdentity}; required for witness injection.
  */
 export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Uint8Array | null) {
-  const [proposals, setProposals] = useState<ProposalView[]>([]);
+  /** Ledger-derived proposals only (map entries). */
+  const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
+  /** User-added ids before the first on-chain vote materializes in public state. */
+  const [pendingProposalIds, setPendingProposalIds] = useState<number[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,13 +104,53 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const [nullifierEpoch, setNullifierEpoch] = useState(0);
   const nullifiersRef = useRef<Set<string>>(new Set());
   const providersRef = useRef<Awaited<ReturnType<typeof createShadowVoteProviders>> | null>(null);
+  const chainProposalsRef = useRef<ProposalView[]>([]);
+
+  useEffect(() => {
+    chainProposalsRef.current = chainProposals;
+  }, [chainProposals]);
+
+  useEffect(() => {
+    setPendingProposalIds(readPendingProposalIds());
+  }, []);
+
+  useEffect(() => {
+    const onChain = new Set(chainProposals.map((p) => p.id));
+    setPendingProposalIds((prev) => {
+      const next = prev.filter((id) => !onChain.has(id));
+      if (next.length === prev.length) return prev;
+      writePendingProposalIds(next);
+      return next;
+    });
+  }, [chainProposals]);
+
+  const proposals = useMemo(() => {
+    const onChain = new Map(chainProposals.map((p) => [p.id, p] as const));
+    const merged: ProposalView[] = [...chainProposals];
+    for (const id of pendingProposalIds) {
+      if (!onChain.has(id)) merged.push({ id, tally: 0 });
+    }
+    merged.sort((a, b) => a.id - b.id);
+    return merged;
+  }, [chainProposals, pendingProposalIds]);
 
   const applyContractState = useCallback(async (contractState: ContractState) => {
     const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
-    setProposals(next);
+    setChainProposals(next);
     nullifiersRef.current = nextNulls;
     setNullifierEpoch((e) => e + 1);
     setSyncError(null);
+  }, []);
+
+  const registerPendingProposal = useCallback((id: number) => {
+    if (!Number.isFinite(id) || id < 0 || id > 0xffffffff) return;
+    if (chainProposalsRef.current.some((p) => p.id === id)) return;
+    setPendingProposalIds((prev) => {
+      if (prev.includes(id)) return prev;
+      const next = [...prev, id].sort((a, b) => a - b);
+      writePendingProposalIds(next);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -169,7 +237,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const fetchProposals = useCallback(async (): Promise<ProposalView[]> => {
     setError(null);
     if (!connectedApi) {
-      setProposals([]);
+      setChainProposals([]);
       nullifiersRef.current = new Set();
       setNullifierEpoch((e) => e + 1);
       return [];
@@ -271,6 +339,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   return {
     proposals,
+    registerPendingProposal,
     fetchProposals,
     castVote,
     checkHasVoted,

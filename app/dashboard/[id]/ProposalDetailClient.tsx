@@ -301,7 +301,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
             </ErrorPanel>
           ) : null}
 
-          {!shadow.isLoadingProposals && shadow.proposals.length > 0 && !row ? (
+          {!shadow.isLoadingProposals && !row ? (
             <Body css={{ color: '$gray500', fontSize: '$sm', fontFamily: '$poppins' }}>
               This proposal id is not in the on-chain map yet (no votes recorded). You can still cast the first vote —
               the contract will initialize the tally.
