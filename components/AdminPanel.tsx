@@ -1,5 +1,11 @@
 'use client';
 
+/**
+ * Admin gatekeeper: this panel is **not** in the React tree for regular users.
+ * It only renders when Lace reports an unshielded address that matches `NEXT_PUBLIC_ADMIN_WALLET_ADDRESS`
+ * (see `.env.local`). Everyone else gets `null` — no placeholder, no hint.
+ */
+
 import { Button } from '@/components/Button';
 import { Body, H2 } from '@/components/Typography';
 import { useToast } from '@/contexts/ToastContext';
@@ -13,13 +19,25 @@ const spin = keyframes({
   '100%': { transform: 'rotate(360deg)' },
 });
 
-const Card = styled('section', {
+/** Distinct from standard dashboard cards: dark outline, subdued surface. */
+const AdminShell = styled('section', {
   marginTop: '$8',
-  padding: '$5',
+  padding: '$5 $6',
   borderRadius: '$lg',
-  border: '1px solid $gray200',
-  backgroundColor: '$gray50',
-  boxShadow: '$soft',
+  border: '2px solid #3F3F46',
+  background: 'linear-gradient(180deg, #FAFAFA 0%, #F4F4F5 100%)',
+  boxShadow: '0 0 0 1px rgba(24, 24, 27, 0.06), 0 8px 24px rgba(9, 9, 11, 0.06)',
+});
+
+const AdminBadge = styled('span', {
+  display: 'inline-block',
+  fontFamily: '$poppins',
+  fontSize: '10px',
+  fontWeight: '$semibold',
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase',
+  color: '#A1A1AA',
+  marginBottom: '$2',
 });
 
 const HeaderRow = styled('div', {
@@ -36,6 +54,10 @@ const Spinner = styled('span', {
   animation: `${spin} 0.7s linear infinite`,
   flexShrink: 0,
 });
+
+function normalizeUnshieldedAddr(addr: string): string {
+  return addr.trim().toLowerCase();
+}
 
 function parseAdminPreimageHex(hex: string): Uint8Array {
   const normalized = hex.trim().replace(/^0x/i, '');
@@ -128,12 +150,10 @@ export function AdminPanel({ syncVoterRegistry, isSyncingRegistry }: AdminPanelP
   const wallet = useMidnightWallet();
   const toast = useToast();
 
-  const adminWallet = process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS?.trim() ?? '';
-  const connected = wallet.unshieldedAddress?.trim() ?? '';
-
-  if (!adminWallet || !connected || adminWallet.toLowerCase() !== connected.toLowerCase()) {
-    return null;
-  }
+  /** Lace unshielded (Night) address — public gate input. */
+  const connectedAddress = wallet.unshieldedAddress?.trim() ?? '';
+  /** Canonical allow-list from env; must match build-time `NEXT_PUBLIC_ADMIN_WALLET_ADDRESS`. */
+  const adminAddress = process.env.NEXT_PUBLIC_ADMIN_WALLET_ADDRESS?.trim() ?? '';
 
   const onSync = useCallback(async () => {
     const hex =
@@ -156,10 +176,22 @@ export function AdminPanel({ syncVoterRegistry, isSyncingRegistry }: AdminPanelP
     }
   }, [syncVoterRegistry, toast]);
 
+  // --- Gatekeeper: no wallet, no configured admin, or address mismatch → render nothing ---
+  if (!connectedAddress) {
+    return null;
+  }
+  if (!adminAddress) {
+    return null;
+  }
+  if (normalizeUnshieldedAddr(connectedAddress) !== normalizeUnshieldedAddr(adminAddress)) {
+    return null;
+  }
+
   return (
-    <Card aria-labelledby="admin-controls-heading">
+    <AdminShell aria-labelledby="admin-controls-heading">
+      <AdminBadge>Restricted</AdminBadge>
       <HeaderRow>
-        <H2 id="admin-controls-heading" css={{ margin: 0, fontSize: '$xl', fontFamily: '$poppins' }}>
+        <H2 id="admin-controls-heading" css={{ margin: 0, fontSize: '$xl', fontFamily: '$poppins', color: '$black' }}>
           Admin Controls
         </H2>
         <Body
@@ -181,9 +213,9 @@ export function AdminPanel({ syncVoterRegistry, isSyncingRegistry }: AdminPanelP
             Syncing…
           </>
         ) : (
-          'Sync Voter Registry to Midnight'
+          'Sync Voter Registry'
         )}
       </Button>
-    </Card>
+    </AdminShell>
   );
 }
