@@ -3,6 +3,7 @@
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
+import { PastProposalCard } from '@/components/PastProposalCard';
 import { ProposalCard } from '@/components/ProposalCard';
 import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
@@ -74,6 +75,38 @@ const ProposalGrid = styled('div', {
   gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
 });
 
+const SectionHeading = styled('h2', {
+  margin: 0,
+  marginBottom: '$5',
+  fontFamily: '$poppins',
+  fontWeight: '$semibold',
+  fontSize: '$xl',
+  lineHeight: 1.25,
+  letterSpacing: '-0.02em',
+  color: '$black',
+});
+
+const PastSection = styled('section', {
+  marginTop: '60px',
+});
+
+const PastHeading = styled('h2', {
+  margin: 0,
+  marginBottom: '$6',
+  fontFamily: '$poppins',
+  fontWeight: '$semibold',
+  fontSize: '$xl',
+  lineHeight: 1.25,
+  letterSpacing: '-0.02em',
+  color: '$black',
+});
+
+const PastGrid = styled('div', {
+  display: 'grid',
+  gap: '24px',
+  gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))',
+});
+
 const SkeletonGrid = styled('div', {
   display: 'grid',
   gap: '24px',
@@ -141,6 +174,7 @@ export default function DashboardPage() {
   const clearSyncError = shadowVote?.clearSyncError ?? (() => {});
 
   const safeProposals = Array.isArray(proposals) ? proposals : [];
+  const allPastProposals = shadowVote?.allPastProposals ?? [];
 
   const [isModalOpen, setIsModalOpen] = useState(false);
 
@@ -148,6 +182,7 @@ export default function DashboardPage() {
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
 
   const registerPending = shadowVote?.registerPendingProposal;
+  const recordPast = shadowVote?.recordUserPastProposalFromModal;
 
   const handleCreateProposal = useCallback(
     ({ proposalId, title }: { proposalId: number; title: string }) => {
@@ -162,9 +197,10 @@ export default function DashboardPage() {
         }
       }
       registerPending?.(proposalId);
+      recordPast?.(proposalId, title);
       setIsModalOpen(false);
     },
-    [registerPending],
+    [registerPending, recordPast],
   );
 
   if (wallet?.isLoading) {
@@ -283,7 +319,17 @@ export default function DashboardPage() {
             </SyncBanner>
           ) : null}
 
+          <SectionHeading>Active Proposals</SectionHeading>
           {proposalBody}
+
+          <PastSection aria-labelledby="dashboard-past-proposals-heading">
+            <PastHeading id="dashboard-past-proposals-heading">Past Proposals</PastHeading>
+            <PastGrid>
+              {allPastProposals.map((p, i) => (
+                <PastProposalCard key={p.id} proposal={p} index={i} />
+              ))}
+            </PastGrid>
+          </PastSection>
         </motion.div>
       </DashboardContainer>
 

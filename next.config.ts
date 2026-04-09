@@ -8,6 +8,15 @@ const nextConfig: NextConfig = {
   /** Prefer this project as tracing root when multiple lockfiles exist (e.g. under home). */
   outputFileTracingRoot: path.join(__dirname),
   reactStrictMode: true,
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+    ],
+  },
   /**
    * Heavy native/WASM Midnight packages: avoid SSR bundle edge cases on Vercel where the graph
    * only needs them in client islands (`ssr: false` dashboards still benefit from clearer server traces).

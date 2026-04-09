@@ -5,10 +5,15 @@ import type { ContractState, StateValue } from '@midnight-ntwrk/compact-runtime'
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Subscription } from 'rxjs';
-import { createShadowVoteProviders, type ShadowVoteCircuitId } from '@/lib/createShadowVoteProviders';
+import { createShadowVoteProviders } from '@/lib/createShadowVoteProviders';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
+import {
+  MOCK_PAST_PROPOSALS,
+  createUserPastProposalSnapshot,
+  type PastProposalRecord,
+} from '@/utils/mockData';
 import { classifyVoteFailure, computeVoteNullifier, bytes32ToLowerHex } from '../utils/crypto';
 import {
   buildMerklePathWitness,
@@ -76,6 +81,44 @@ function writePendingProposalIds(ids: number[]) {
   }
 }
 
+const USER_FINISHED_PROPOSALS_KEY = 'shadowvote.userFinishedProposals.v1';
+
+function isPastProposalRecord(x: unknown): x is PastProposalRecord {
+  if (!x || typeof x !== 'object') return false;
+  const o = x as Record<string, unknown>;
+  return (
+    typeof o.id === 'string' &&
+    typeof o.title === 'string' &&
+    typeof o.description === 'string' &&
+    typeof o.yesVotes === 'number' &&
+    typeof o.noVotes === 'number' &&
+    typeof o.totalVotes === 'string' &&
+    typeof o.status === 'string' &&
+    typeof o.imageUrl === 'string'
+  );
+}
+
+function readUserFinishedProposals(): PastProposalRecord[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = localStorage.getItem(USER_FINISHED_PROPOSALS_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(isPastProposalRecord);
+  } catch {
+    return [];
+  }
+}
+
+function writeUserFinishedProposals(rows: PastProposalRecord[]) {
+  try {
+    localStorage.setItem(USER_FINISHED_PROPOSALS_KEY, JSON.stringify(rows));
+  } catch {
+    /* ignore */
+  }
+}
+
 async function ledgerFromContractState(contractState: ContractState): Promise<{
   proposals: ProposalView[];
   nullifiers: Set<string>;
@@ -96,6 +139,8 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
   /** User-added ids before the first on-chain vote materializes in public state. */
   const [pendingProposalIds, setPendingProposalIds] = useState<number[]>([]);
+  /** Locally recorded “finished” rows (mock stats) from {@link CreateProposalModal} + persistence. */
+  const [userFinishedProposals, setUserFinishedProposals] = useState<PastProposalRecord[]>([]);
   const [isLoadingProposals, setIsLoadingProposals] = useState(false);
   const [isVoting, setIsVoting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +157,10 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   useEffect(() => {
     setPendingProposalIds(readPendingProposalIds());
+  }, []);
+
+  useEffect(() => {
+    setUserFinishedProposals(readUserFinishedProposals());
   }, []);
 
   useEffect(() => {
@@ -134,6 +183,11 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     return merged;
   }, [chainProposals, pendingProposalIds]);
 
+  const allPastProposals = useMemo(
+    () => [...userFinishedProposals, ...MOCK_PAST_PROPOSALS],
+    [userFinishedProposals],
+  );
+
   const applyContractState = useCallback(async (contractState: ContractState) => {
     const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
     setChainProposals(next);
@@ -149,6 +203,16 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
       if (prev.includes(id)) return prev;
       const next = [...prev, id].sort((a, b) => a - b);
       writePendingProposalIds(next);
+      return next;
+    });
+  }, []);
+
+  const recordUserPastProposalFromModal = useCallback((pid: number, title: string) => {
+    if (!Number.isFinite(pid) || pid < 0 || pid > 0xffffffff) return;
+    const row = createUserPastProposalSnapshot(pid, title);
+    setUserFinishedProposals((prev) => {
+      const next = [row, ...prev];
+      writeUserFinishedProposals(next);
       return next;
     });
   }, []);
@@ -339,7 +403,10 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
 
   return {
     proposals,
+    userFinishedProposals,
+    allPastProposals,
     registerPendingProposal,
+    recordUserPastProposalFromModal,
     fetchProposals,
     castVote,
     checkHasVoted,
