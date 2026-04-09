@@ -2,9 +2,11 @@
 
 import { Body, Caption } from '@/components/Typography';
 import { useToast } from '@/contexts/ToastContext';
+import { useSupabaseSync } from '@/hooks/useSupabaseSync';
 import { gradientPrimary, styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import Link from 'next/link';
+import { useEffect, useMemo, useState } from 'react';
 
 const Card = styled(motion.article, {
   position: 'relative',
@@ -37,14 +39,14 @@ const ShareButton = styled('button', {
   height: '36px',
   borderRadius: '$md',
   border: '1px solid #E5E7EB',
-  backgroundColor: '#FFFFFF',
+  backgroundColor: 'transparent',
   cursor: 'pointer',
   color: '$gray600',
   transition: 'border-color 0.15s ease, color 0.15s ease, background-color 0.15s ease',
   '&:hover': {
     borderColor: '$gray400',
     color: '$black',
-    backgroundColor: '$gray50',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
   },
   '&:focus-visible': {
     outline: 'none',
@@ -75,24 +77,25 @@ const Tally = styled('span', {
   letterSpacing: '-0.02em',
 });
 
-function ShareGlyph({ className }: { className?: string }) {
+function ShareIcon() {
   return (
     <svg
-      className={className}
+      xmlns="http://www.w3.org/2000/svg"
       width={18}
       height={18}
       viewBox="0 0 24 24"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
     >
-      <path
-        d="M10 13a5 5 0 00-1.07 9.9M14 11a5 5 0 011.07-9.9M8.59 13.34l6.83 3.98m.01-7.64L8.58 10.66"
-        stroke="currentColor"
-        strokeWidth="1.65"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
     </svg>
   );
 }
@@ -130,6 +133,28 @@ export type ProposalCardProps = {
 
 export function ProposalCard({ proposalId, tally, index = 0 }: ProposalCardProps) {
   const toast = useToast();
+  const { offChainProposals } = useSupabaseSync();
+  const [storageTitle, setStorageTitle] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
+      const map: Record<string, string> = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      const t = map[String(proposalId)];
+      setStorageTitle(typeof t === 'string' && t.trim() ? t.trim() : undefined);
+    } catch {
+      setStorageTitle(undefined);
+    }
+  }, [proposalId]);
+
+  const proposalTitle = useMemo(() => {
+    const row = offChainProposals.find((r) => String(r.id) === String(proposalId));
+    const fromSb = row?.title?.trim();
+    if (fromSb) return fromSb;
+    return storageTitle;
+  }, [offChainProposals, proposalId, storageTitle]);
+
+  const heading = proposalTitle && proposalTitle.length > 0 ? proposalTitle : `Proposal #${proposalId}`;
 
   const copyShareLink = () => {
     const url = `${window.location.origin}/dashboard/${proposalId}`;
@@ -151,11 +176,11 @@ export function ProposalCard({ proposalId, tally, index = 0 }: ProposalCardProps
     >
       <TopBar>
         <Row css={{ flex: 1, minWidth: 0 }}>
-          <ProposalLabel>Proposal #{proposalId}</ProposalLabel>
+          <ProposalLabel>{heading}</ProposalLabel>
           <Caption>Votes</Caption>
         </Row>
         <ShareButton type="button" onClick={copyShareLink} aria-label="Copy link to this proposal">
-          <ShareGlyph />
+          <ShareIcon />
         </ShareButton>
       </TopBar>
       <Tally>{tally}</Tally>

@@ -170,24 +170,25 @@ const Footer = styled('div', {
   paddingTop: '$2',
 });
 
-function ShareGlyph({ className }: { className?: string }) {
+function ShareIcon() {
   return (
     <svg
-      className={className}
+      xmlns="http://www.w3.org/2000/svg"
       width={18}
       height={18}
       viewBox="0 0 24 24"
       fill="none"
-      xmlns="http://www.w3.org/2000/svg"
+      stroke="currentColor"
+      strokeWidth={2}
+      strokeLinecap="round"
+      strokeLinejoin="round"
       aria-hidden
     >
-      <path
-        d="M10 13a5 5 0 00-1.07 9.9M14 11a5 5 0 011.07-9.9M8.59 13.34l6.83 3.98m.01-7.64L8.58 10.66"
-        stroke="currentColor"
-        strokeWidth="1.65"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
+      <circle cx="18" cy="5" r="3" />
+      <circle cx="6" cy="12" r="3" />
+      <circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+      <line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
     </svg>
   );
 }
@@ -229,7 +230,7 @@ export function PastProposalCard({ proposal, index = 0 }: PastProposalCardProps)
         />
         <ImageTopActions>
           <ShareButton type="button" onClick={copyShareLink} aria-label="Copy link to this proposal">
-            <ShareGlyph />
+            <ShareIcon />
           </ShareButton>
         </ImageTopActions>
       </ImageWrap>
