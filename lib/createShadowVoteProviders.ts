@@ -34,6 +34,30 @@ function requirePrivateStatePassword(): string {
 
 let shieldedKeysCache: { coinHex: string; encHex: string } | null = null;
 
+const HEX32 = /^(?:0x)?([0-9a-fA-F]{64})$/;
+
+/**
+ * Lace may return shielded keys as bech32m or as raw 32-byte hex. Bech32 decoding hex fails with
+ * `Unknown letter: "b"` (hex charset is not a bech32 alphabet).
+ */
+function shieldedCoinPublicKeyToHex(value: string): string {
+  const trimmed = value.trim();
+  const hexM = HEX32.exec(trimmed);
+  if (hexM) {
+    return ShieldedCoinPublicKey.fromHexString(hexM[1]!).toHexString();
+  }
+  return ShieldedCoinPublicKey.codec.decode(NETWORK_ID, MidnightBech32m.parse(trimmed)).toHexString();
+}
+
+function shieldedEncryptionPublicKeyToHex(value: string): string {
+  const trimmed = value.trim();
+  const hexM = HEX32.exec(trimmed);
+  if (hexM) {
+    return ShieldedEncryptionPublicKey.fromHexString(hexM[1]!).toHexString();
+  }
+  return ShieldedEncryptionPublicKey.codec.decode(NETWORK_ID, MidnightBech32m.parse(trimmed)).toHexString();
+}
+
 async function getShieldedKeyMaterial(api: ConnectedAPI): Promise<{ coinHex: string; encHex: string }> {
   if (shieldedKeysCache) return shieldedKeysCache;
   await api.hintUsage?.([
@@ -45,12 +69,8 @@ async function getShieldedKeyMaterial(api: ConnectedAPI): Promise<{ coinHex: str
     'submitTransaction',
   ]);
   const { shieldedCoinPublicKey, shieldedEncryptionPublicKey } = await api.getShieldedAddresses();
-  const coinHex = ShieldedCoinPublicKey.codec
-    .decode(NETWORK_ID, MidnightBech32m.parse(shieldedCoinPublicKey))
-    .toHexString();
-  const encHex = ShieldedEncryptionPublicKey.codec
-    .decode(NETWORK_ID, MidnightBech32m.parse(shieldedEncryptionPublicKey))
-    .toHexString();
+  const coinHex = shieldedCoinPublicKeyToHex(shieldedCoinPublicKey);
+  const encHex = shieldedEncryptionPublicKeyToHex(shieldedEncryptionPublicKey);
   shieldedKeysCache = { coinHex, encHex };
   return shieldedKeysCache;
 }
