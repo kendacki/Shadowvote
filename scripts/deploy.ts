@@ -30,6 +30,18 @@ function shadowvoteCtorParamCountFromBuild(): number {
   return Number(m[1]) - 1;
 }
 
+/** Open DAO source has no Merkle path witness; a stale `build/` still expects `voterMembershipPath`. */
+function assertBuildMatchesCompact(contractJs: string): void {
+  if (contractJs.includes('voterMembershipPath')) {
+    throw new Error(
+      'build/contract is OUT OF DATE (still the old Merkle contract).\n' +
+        'Run this from the project root (with compactc on PATH), then deploy again:\n' +
+        '  npm run compile:contract\n' +
+        '  npm run zk:public\n',
+    );
+  }
+}
+
 async function main(): Promise<void> {
   console.log('\nShadowVote — deployment (Open DAO)\n');
 
@@ -50,6 +62,7 @@ async function main(): Promise<void> {
 
   console.log('Loading contract from build output...');
   const contractPath = path.join(process.cwd(), 'build', 'contract', 'index.js');
+  assertBuildMatchesCompact(fs.readFileSync(contractPath, 'utf8'));
   const mod = await import(pathToFileURL(contractPath).href);
 
   const cleanCompiledContract = await loadCompiledContract();
@@ -73,14 +86,14 @@ async function main(): Promise<void> {
   const ctorArity = shadowvoteCtorParamCountFromBuild();
   const sourceArity = shadowvoteConstructorArgCountFromSource();
   if (ctorArity !== sourceArity) {
-    console.warn(
-      `[deploy] contracts/shadowvote.compact declares ${String(sourceArity)} constructor parameter(s) but build/contract reflects ${String(
+    throw new Error(
+      `contracts/shadowvote.compact has ${String(sourceArity)} constructor parameter(s) but build/contract expects ${String(
         ctorArity,
-      )}. Re-run npm run compile:contract so deploy matches the Compact source.`,
+      )}.\nRun: npm run compile:contract\nThen: npm run zk:public`,
     );
   }
 
-  const deployArgs: unknown[] = ctorArity === 0 ? [] : [];
+  const deployArgs: unknown[] = [];
 
   try {
     const deployed = await deployContract(deploymentProviders as never, {
