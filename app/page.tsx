@@ -3,13 +3,14 @@
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useState } from 'react';
+import { useState, type FormEvent } from 'react';
 import { Button } from '@/components/Button';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { Body, Caption, FeatureBody, FeatureTitle, H2 } from '@/components/Typography';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
 import { gradientPrimary, styled } from '@/stitches.config';
 import { formatTNight, truncateAddress } from '@/utils/formatters';
+import { supabase } from '@/utils/supabase';
 
 /** Prefer a raster PNG with transparency at `public/shadowvote-logo.png`; falls back to vector emblem. */
 const LOGO_SRC = '/shadowvote-logo.png';
@@ -486,6 +487,51 @@ export default function HomePage() {
   const router = useRouter();
   const wallet = useMidnightWallet();
   const blocking = wallet.isLoading || wallet.isConnecting;
+
+  const [email, setEmail] = useState('');
+  const [status, setStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = useState('');
+
+  const handleSubscribe = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    console.log('1. Form submitted with email:', email);
+
+    if (!email.trim()) return;
+
+    if (!supabase) {
+      console.error('Supabase client not configured (missing NEXT_PUBLIC_SUPABASE_* env).');
+      setErrorMessage('Something went wrong. Please try again.');
+      setStatus('error');
+      return;
+    }
+
+    setStatus('loading');
+    setErrorMessage('');
+    try {
+      console.log('2. Attempting Supabase insertion...');
+      const trimmed = email.trim();
+      const { error } = await supabase.from('subscribers').insert([{ email: trimmed }]);
+
+      if (error) {
+        console.error('3. Supabase Error:', error);
+        if (error.code === '23505') {
+          setErrorMessage('You are already on the list!');
+        } else {
+          setErrorMessage(error.message || 'Something went wrong.');
+        }
+        setStatus('error');
+        return;
+      }
+
+      console.log('4. Supabase insertion successful!');
+      setStatus('success');
+      setEmail('');
+    } catch (err) {
+      console.error('3. Caught Exception:', err);
+      setErrorMessage('Network error occurred.');
+      setStatus('error');
+    }
+  };
   return (
     <Page>
       <Blob
@@ -707,14 +753,58 @@ export default function HomePage() {
                   <Body css={{ color: '#A1A1AA', maxWidth: '480px', margin: '0 auto' }}>
                     Get updates on ShadowVote and Midnight testnet releases. No spam — unsubscribe anytime.
                   </Body>
-                  <NlRow
-                    onSubmit={(e) => {
-                      e.preventDefault();
-                    }}
-                  >
-                    <EmailInput type="email" name="email" placeholder="Your email" autoComplete="email" />
-                    <SignUpBtn type="submit">Subscribe</SignUpBtn>
-                  </NlRow>
+                  {status === 'success' ? (
+                    <Body
+                      css={{
+                        color: '#A1A1AA',
+                        maxWidth: '480px',
+                        margin: '$5 auto 0',
+                        fontFamily: '$poppins',
+                        fontSize: '$sm',
+                      }}
+                    >
+                      Thanks for subscribing! We&apos;ll keep you in the loop.
+                    </Body>
+                  ) : (
+                    <>
+                      <NlRow onSubmit={handleSubscribe}>
+                        <EmailInput
+                          type="email"
+                          name="email"
+                          placeholder="Your email"
+                          autoComplete="email"
+                          value={email}
+                          onChange={(e) => setEmail(e.target.value)}
+                          required
+                          disabled={status === 'loading'}
+                        />
+                        <SignUpBtn
+                          type="submit"
+                          disabled={status === 'loading'}
+                          style={
+                            status === 'loading'
+                              ? { opacity: 0.85, cursor: 'wait' as const }
+                              : undefined
+                          }
+                        >
+                          {status === 'loading' ? 'Subscribing...' : 'Subscribe'}
+                        </SignUpBtn>
+                      </NlRow>
+                      {status === 'error' && errorMessage ? (
+                        <Body
+                          role="alert"
+                          css={{
+                            color: '#F87171',
+                            fontSize: '$xs',
+                            marginTop: '$3',
+                            fontFamily: '$poppins',
+                          }}
+                        >
+                          {errorMessage}
+                        </Body>
+                      ) : null}
+                    </>
+                  )}
                 </Newsletter>
               </Section>
 
