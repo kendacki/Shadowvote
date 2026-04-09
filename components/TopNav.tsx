@@ -3,6 +3,7 @@
 import { Button } from '@/components/Button';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
 import { styled } from '@/stitches.config';
+import { formatTNight, truncateAddress } from '@/utils/formatters';
 import Link from 'next/link';
 
 const EMBLEM_SRC = '/shadowvote-emblem.svg';
@@ -11,7 +12,8 @@ const Bar = styled('header', {
   position: 'sticky',
   top: 0,
   width: '100%',
-  zIndex: 50,
+  flexShrink: 0,
+  zIndex: 20,
   display: 'flex',
   alignItems: 'flex-start',
   justifyContent: 'space-between',
@@ -20,7 +22,7 @@ const Bar = styled('header', {
   paddingRight: 'max(1.25rem, env(safe-area-inset-right, 0px))',
   paddingTop: '14px',
   paddingBottom: '14px',
-  background: '#FFFFFF',
+  backgroundColor: '#FFFFFF',
   borderBottom: '1px solid #E5E7EB',
   boxSizing: 'border-box',
 });
@@ -29,6 +31,7 @@ const LeftCol = styled('div', {
   display: 'flex',
   flexDirection: 'column',
   alignItems: 'flex-start',
+  minWidth: 0,
 });
 
 const Brand = styled(Link, {
@@ -40,7 +43,6 @@ const Brand = styled(Link, {
   minWidth: 0,
 });
 
-/** White squircle frame — reference: rounded square around gradient emblem */
 const LogoSquircle = styled('span', {
   display: 'flex',
   alignItems: 'center',
@@ -100,19 +102,33 @@ const Right = styled('div', {
   justifyContent: 'flex-end',
   gap: '$3',
   minWidth: 0,
+  flex: '1 1 auto',
   paddingTop: '4px',
 });
 
+/** Flex + minWidth 0 so ellipsis works; never lets long bech32 blow out the bar. */
+const WalletCluster = styled('div', {
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'flex-end',
+  gap: '$3',
+  minWidth: 0,
+  maxWidth: 'min(100%, 280px)',
+  '@sm': { maxWidth: 'min(100%, 400px)' },
+});
+
 const WalletLine = styled('span', {
+  display: 'block',
   fontFamily: '$poppins',
   fontSize: '$sm',
   fontWeight: '$regular',
   color: '$gray600',
-  maxWidth: 'min(340px, 72vw)',
+  minWidth: 0,
+  flex: '1 1 auto',
   overflow: 'hidden',
   textOverflow: 'ellipsis',
   whiteSpace: 'nowrap',
-  '@sm': { maxWidth: '420px' },
+  textAlign: 'right' as const,
 });
 
 const DisconnectBtn = styled('button', {
@@ -126,22 +142,6 @@ const DisconnectBtn = styled('button', {
   flexShrink: 0,
   '&:hover': { color: '$gray600' },
 });
-
-function truncateForNav(address: string | null | undefined): string {
-  if (address == null) return '—';
-  const t = address.trim();
-  if (t === '') return '—';
-  const head = 4;
-  const tail = 4;
-  if (t.length <= head + tail + 3) return t;
-  return `${t.slice(0, head)}...${t.slice(-tail)}`;
-}
-
-function formatCompactTNight(amount: bigint | null | undefined): string {
-  if (amount == null) return '—';
-  const whole = amount / 1_000_000n;
-  return `${whole.toString()} tNight`;
-}
 
 function HouseGlyph({ className }: { className?: string }) {
   return (
@@ -167,10 +167,10 @@ function HouseGlyph({ className }: { className?: string }) {
 export function TopNav() {
   const wallet = useMidnightWallet();
 
-  const balanceStr = formatCompactTNight(wallet.tNightBalance);
-  const addrStr = truncateForNav(wallet.unshieldedAddress);
+  const balanceStr = formatTNight(wallet.tNightBalance);
+  const addrStr = truncateAddress(wallet.unshieldedAddress, { head: 8, tail: 6 });
   const walletSummary =
-    wallet.isConnected && wallet.unshieldedAddress ? `${balanceStr} | ${addrStr}` : null;
+    wallet.isConnected && wallet.unshieldedAddress ? `${balanceStr} · ${addrStr}` : null;
 
   return (
     <Bar>
@@ -192,14 +192,16 @@ export function TopNav() {
 
       <Right>
         {wallet.isLoading ? (
-          <WalletLine>…</WalletLine>
+          <WalletCluster>
+            <WalletLine>…</WalletLine>
+          </WalletCluster>
         ) : wallet.isConnected && wallet.unshieldedAddress ? (
-          <>
-            <WalletLine>{walletSummary}</WalletLine>
+          <WalletCluster>
+            <WalletLine title={wallet.unshieldedAddress}>{walletSummary}</WalletLine>
             <DisconnectBtn type="button" onClick={() => wallet.disconnect()}>
               Disconnect
             </DisconnectBtn>
-          </>
+          </WalletCluster>
         ) : (
           <Button type="button" variant="primary" disabled={wallet.isConnecting} onClick={() => void wallet.connect()}>
             {wallet.isConnecting ? 'Connecting…' : 'Connect wallet'}

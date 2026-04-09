@@ -29,10 +29,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preload" href="/shadowvote-loader.png" as="image" type="image/png" />
       </head>
-      <body style={{ fontFamily: 'var(--font-poppins), Poppins, system-ui, sans-serif', margin: 0 }}>
+      <body
+        style={{
+          fontFamily: 'var(--font-poppins), Poppins, system-ui, sans-serif',
+          margin: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100vh',
+        }}
+      >
         <NetworkBanner />
         <ClientRoot>
-          <main>{children}</main>
+          <main
+            style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              minHeight: 0,
+              minWidth: 0,
+              width: '100%',
+            }}
+          >
+            {children}
+          </main>
         </ClientRoot>
       </body>
     </html>

@@ -11,7 +11,20 @@ export function ClientRoot({ children }: { children: React.ReactNode }) {
   }, []);
   return (
     <ToastProvider>
-      <MidnightWalletProvider>{children}</MidnightWalletProvider>
+      <MidnightWalletProvider>
+        <div
+          style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            minHeight: 0,
+            minWidth: 0,
+            width: '100%',
+          }}
+        >
+          {children}
+        </div>
+      </MidnightWalletProvider>
     </ToastProvider>
   );
 }

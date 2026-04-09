@@ -16,16 +16,23 @@ import { useRouter } from 'next/navigation';
 import { useCallback, useState, type ReactNode } from 'react';
 
 const PageShell = styled(motion.div, {
-  minHeight: '100vh',
-  backgroundColor: '#FFFFFF',
+  flex: 1,
+  display: 'flex',
+  flexDirection: 'column',
+  minHeight: 0,
+  minWidth: 0,
+  width: '100%',
 });
 
-/** Standard flow — no fixed offsets; global TopNav + banner sit above in layout. */
+/** Standard flow — spacing clears sticky TopNav; safe-area for notched devices. */
 const DashboardContainer = styled('div', {
   width: '100%',
   maxWidth: '1200px',
   margin: '0 auto',
-  padding: '40px 20px',
+  paddingTop: '$8',
+  paddingBottom: '$8',
+  paddingLeft: 'max(20px, env(safe-area-inset-left, 0px))',
+  paddingRight: 'max(20px, env(safe-area-inset-right, 0px))',
   boxSizing: 'border-box',
 });
 
@@ -36,7 +43,6 @@ const Hero = styled('div', {
   justifyContent: 'space-between',
   gap: '$4',
   marginBottom: '$8',
-  paddingTop: '$2',
 });
 
 const TitleBlock = styled('div', {
@@ -251,6 +257,12 @@ export default function DashboardPage() {
     return (
       <PageShell initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.4 }}>
         <LoadingScreen message="Loading wallet…" variant="light" />
+        <CreateProposalModal
+          isOpen={isModalOpen}
+          onClose={() => setIsModalOpen(false)}
+          onSubmit={handleCreateProposal}
+          isSubmitting={isVoting}
+        />
       </PageShell>
     );
   }
@@ -270,13 +282,6 @@ export default function DashboardPage() {
             </Button>
           </DisconnectPanel>
         </DashboardContainer>
-
-        <CreateProposalModal
-          isOpen={isModalOpen}
-          onClose={() => setIsModalOpen(false)}
-          onSubmit={handleCreateProposal}
-          isSubmitting={isVoting}
-        />
       </PageShell>
     );
   }

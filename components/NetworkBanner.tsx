@@ -7,7 +7,6 @@ import { motion } from 'framer-motion';
 const Bar = styled(motion.div, {
   position: 'relative',
   width: '100%',
-  zIndex: 60,
   flexShrink: 0,
   padding: '$2 max($4, env(safe-area-inset-left, 0px)) $2 max($4, env(safe-area-inset-right, 0px))',
   textAlign: 'center',
