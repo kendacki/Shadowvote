@@ -14,6 +14,9 @@ const poppins = Poppins({
 export const metadata: Metadata = {
   title: 'ShadowVote — Anonymous Governance',
   description: 'Private voting on Midnight with zero-knowledge proofs.',
+  icons: {
+    icon: '/favicon.png',
+  },
 };
 
 export const viewport = {
