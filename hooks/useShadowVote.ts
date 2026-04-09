@@ -150,6 +150,10 @@ export function useShadowVote(
   voterSecret: Uint8Array | null,
   walletCtx?: ShadowVoteWalletContext | null,
 ) {
+  if (process.env.NODE_ENV !== 'production') {
+    console.count('🚨 useShadowVote Hook Render');
+  }
+
   /** Ledger-derived proposals only (map entries). */
   const [chainProposals, setChainProposals] = useState<ProposalView[]>([]);
   /** User-added ids before the first on-chain vote materializes in public state. */
@@ -173,6 +177,22 @@ export function useShadowVote(
   const nullifiersRef = useRef<Set<string>>(new Set());
   const providersRef = useRef<Awaited<ReturnType<typeof createShadowVoteProviders>> | null>(null);
   const chainProposalsRef = useRef<ProposalView[]>([]);
+  /** Ref mirrors for epoch sync — avoids unstable `useCallback` deps that retrigger effects every render. */
+  const connectedApiRef = useRef<ConnectedAPI | null>(connectedApi);
+  const chainVoterRootFieldRef = useRef<bigint | null>(chainVoterRootField);
+  const voterSecretRef = useRef<Uint8Array | null>(voterSecret);
+  const unshieldedAddressRef = useRef<string>(walletCtx?.unshieldedAddress?.trim() ?? '');
+  connectedApiRef.current = connectedApi;
+  chainVoterRootFieldRef.current = chainVoterRootField;
+  voterSecretRef.current = voterSecret;
+  unshieldedAddressRef.current = walletCtx?.unshieldedAddress?.trim() ?? '';
+
+  const voterSecretFingerprint = useMemo(() => {
+    if (!voterSecret || voterSecret.length !== 32) return '';
+    return bytes32ToLowerHex(voterSecret);
+  }, [voterSecret]);
+  const chainRootKey = chainVoterRootField === null ? null : String(chainVoterRootField);
+  const unshieldedAddressKey = walletCtx?.unshieldedAddress?.trim() ?? '';
 
   useEffect(() => {
     chainProposalsRef.current = chainProposals;
@@ -340,7 +360,12 @@ export function useShadowVote(
   }, [connectedApi, applyContractState]);
 
   const checkEpochSync = useCallback(async () => {
-    if (!connectedApi || chainVoterRootField === null) {
+    const api = connectedApiRef.current;
+    const chainRoot = chainVoterRootFieldRef.current;
+    const vs = voterSecretRef.current;
+    const addr = unshieldedAddressRef.current;
+
+    if (!api || chainRoot === null) {
       return;
     }
     if (!supabase) {
@@ -350,6 +375,9 @@ export function useShadowVote(
     }
     setEpochSyncLoading(true);
     try {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
       const leavesMerged = await collectLeavesForRegisteredVotersRootSync(null);
       const rootMerged = computeVoterRegistryRootField(leavesMerged);
       let dbOnlyRoot: bigint | null = null;
@@ -361,24 +389,21 @@ export function useShadowVote(
       } catch {
         dbOnlyRoot = null;
       }
-      const synced =
-        rootMerged === chainVoterRootField ||
-        (dbOnlyRoot !== null && dbOnlyRoot === chainVoterRootField);
+      const synced = rootMerged === chainRoot || (dbOnlyRoot !== null && dbOnlyRoot === chainRoot);
       setIsEpochSynced(synced);
 
-      const addr = walletCtx?.unshieldedAddress?.trim() ?? '';
       let inSupabase = false;
       if (addr) {
         inSupabase = await isWalletRegisteredForEpoch(addr);
       }
 
       let legacyJsonMatchesChain = false;
-      if (voterSecret != null && voterSecret.length === 32) {
+      if (vs != null && vs.length === 32) {
         try {
           const jsonLeaves = getAuthorizedVoterLeaves();
           const jsonRoot = computeVoterRegistryRootField(jsonLeaves);
-          if (jsonRoot === chainVoterRootField) {
-            const myLeaf = computeVoterLeafHash(voterSecret);
+          if (jsonRoot === chainRoot) {
+            const myLeaf = computeVoterLeafHash(vs);
             buildMerklePathWitness(myLeaf, jsonLeaves);
             legacyJsonMatchesChain = true;
           }
@@ -396,14 +421,28 @@ export function useShadowVote(
     } finally {
       setEpochSyncLoading(false);
     }
-  }, [connectedApi, chainVoterRootField, voterSecret, walletCtx?.unshieldedAddress]);
+  }, []);
 
   useEffect(() => {
-    if (!connectedApi || chainVoterRootField === null) {
+    if (!connectedApi || chainRootKey === null) {
       return;
     }
-    void checkEpochSync();
-  }, [connectedApi, chainVoterRootField, checkEpochSync]);
+    let cancelled = false;
+    void (async () => {
+      await new Promise<void>((resolve) => {
+        window.setTimeout(resolve, 0);
+      });
+      if (cancelled) return;
+      try {
+        await checkEpochSync();
+      } catch (e: unknown) {
+        console.warn('[ShadowVote] scheduled checkEpochSync rejected', e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedApi, chainRootKey, unshieldedAddressKey, voterSecretFingerprint, checkEpochSync]);
 
   const fetchProposals = useCallback(async (): Promise<ProposalView[]> => {
     setError(null);

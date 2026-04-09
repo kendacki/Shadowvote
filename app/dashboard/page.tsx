@@ -211,6 +211,10 @@ function LoadingSkeleton() {
 }
 
 export default function DashboardPage() {
+  if (process.env.NODE_ENV !== 'production') {
+    console.count('🚨 Dashboard Component Render');
+  }
+
   const router = useRouter();
   const wallet = useMidnightWallet();
   const api = wallet.isConnected ? wallet.getConnectedApi() : null;
@@ -218,9 +222,11 @@ export default function DashboardPage() {
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null, {
-    unshieldedAddress: wallet.unshieldedAddress,
-  });
+  const shadowVoteWalletCtx = useMemo(
+    () => ({ unshieldedAddress: wallet.unshieldedAddress }),
+    [wallet.unshieldedAddress],
+  );
+  const shadowVote = useShadowVote(api, identity?.voterSecret ?? null, shadowVoteWalletCtx);
   const { offChainProposals } = useSupabaseSync();
 
   const proposals = shadowVote?.proposals;

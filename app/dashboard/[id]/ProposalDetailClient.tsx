@@ -241,9 +241,11 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
     isWalletConnected: wallet.isConnected,
     tNightBalance: wallet.tNightBalance,
   });
-  const shadow = useShadowVote(api, identity?.voterSecret ?? null, {
-    unshieldedAddress: wallet.unshieldedAddress,
-  });
+  const shadowVoteWalletCtx = useMemo(
+    () => ({ unshieldedAddress: wallet.unshieldedAddress }),
+    [wallet.unshieldedAddress],
+  );
+  const shadow = useShadowVote(api, identity?.voterSecret ?? null, shadowVoteWalletCtx);
 
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
