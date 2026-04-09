@@ -13,30 +13,28 @@ Private, Sybil-resistant governance on **Midnight**: prove voter eligibility in 
 
 ## How the Voting Mechanism Works
 
-To protect the system from spam and fake accounts (Sybil attacks), ShadowVote operates using an "Epoch" system. The voting process is broken down into three simple phases:
+ShadowVote operates as a frictionless, "Public DAO." To participate, users do not need to pre-register or wait for an admin to approve their wallet. The entire voting process is instant and entirely decentralized, broken down into three simple steps:
 
-### Phase 1: Registration (Off-Chain)
-Users cannot simply show up and vote instantly; they must first register for the current voting epoch.
-1. A user connects their Midnight Lace wallet.
-2. The system checks their balance: *Do they hold the minimum requirement of 1000 tNIGHT tokens?*
-3. If yes, the user clicks **Register**. 
-4. The application extracts a cryptographic "Leaf" (a mathematically scrambled version of their identity) and saves it to our off-chain database (Supabase). **At this stage, the user cannot vote yet.**
+### Phase 1: Connection & Verification (Token Gate)
+To protect the system from spam and fake accounts (Sybil attacks), ShadowVote uses a strictly enforced, on-chain token gate.
+1. A user connects their Midnight Lace wallet to the dApp.
+2. The application instantly checks the wallet's balance on the Midnight network.
+3. **The Rule:** The wallet must hold a minimum of **1000 tNIGHT** tokens to participate. If the balance is insufficient, the UI locks the voting mechanism. 
 
-### Phase 2: Epoch Synchronization (Admin)
-The blockchain needs to know the official "VIP List" of registered voters before a poll opens.
-1. An Admin logs into the dashboard.
-2. The Admin clicks **Sync Voters**.
-3. The application downloads all registered leaves from the database and hashes them together into one single cryptographic signature called a **Merkle Root**.
-4. The Admin submits this single Root to the Midnight smart contract. The blockchain is now locked in and ready for the vote.
+### Phase 2: Private Proof Generation (Off-Chain)
+If the user passes the token gate, they are cleared to vote without ever exposing their identity.
+1. The user reviews the active proposal and selects "Yes" or "No".
+2. Instead of sending the user's wallet address to the blockchain, the ShadowVote frontend silently generates a **Zero-Knowledge (ZK) Proof** in the browser. 
+3. This cryptographic proof acts as a mathematical receipt that says: *"I hold the required tokens and am authorized to vote, but I will not reveal my identity."*
+4. Alongside the proof, the system generates a unique **Nullifier** (a one-time passcode tied cryptographically to the proposal).
 
-### Phase 3: Casting a Vote (On-Chain)
-Now that the blockchain knows the mathematical shape of the VIP list, users can vote privately.
-1. The user selects a proposal and chooses "Yes" or "No".
-2. The ShadowVote frontend silently rebuilds the VIP list in the user's browser memory.
-3. It generates a **Zero-Knowledge Proof**—a complex mathematical receipt that says: *"I am on the VIP list, but I will not tell you which specific person I am."*
-4. The user submits this Proof to the blockchain.
-5. The smart contract verifies the math. If it matches the synced Root, the vote is counted. The user's identity remains 100% anonymous.
-   
+### Phase 3: Casting the Vote (On-Chain)
+The final step is submitting the mathematically disguised vote to the network.
+1. The user's wallet prompts them to sign the transaction containing the ZK Proof and Nullifier.
+2. The Midnight smart contract receives the transaction. 
+3. The contract validates the ZK math. It also checks the Nullifier to ensure this specific anonymous user hasn't already voted on this proposal.
+4. If valid, the vote is added to the public tally, but the voter's identity and wallet address remain 100% hidden.
+
 ## Tech stack
 
 | Layer | Choice |
