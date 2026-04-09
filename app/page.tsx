@@ -43,14 +43,14 @@ const Header = styled(motion.header, {
   columnGap: '$2',
   maxWidth: '1200px',
   margin: '0 auto',
-  paddingTop: '$4',
+  paddingTop: '$3',
   paddingBottom: 0,
   paddingLeft: 'max($4, env(safe-area-inset-left, 0px))',
   paddingRight: 'max($4, env(safe-area-inset-right, 0px))',
-  '@xs': { columnGap: '$3', paddingTop: '$5' },
+  '@xs': { columnGap: '$3', paddingTop: '$4' },
   '@md': {
     columnGap: '$4',
-    paddingTop: '$6',
+    paddingTop: '$5',
     paddingLeft: '$7',
     paddingRight: '$7',
   },
@@ -138,17 +138,17 @@ const SignUpBtn = styled('button', {
 
 const HeroGrid = styled('section', {
   maxWidth: '1200px',
-  margin: '$5 auto 0',
-  padding: '$6 max($4, env(safe-area-inset-left, 0px)) $8 max($4, env(safe-area-inset-right, 0px))',
+  margin: '$2 auto 0',
+  padding: '$5 max($4, env(safe-area-inset-left, 0px)) $5 max($4, env(safe-area-inset-right, 0px))',
   display: 'grid',
-  gap: '$6',
+  gap: '$5',
   alignItems: 'center',
-  '@xs': { marginTop: '$6', padding: '$7 $5 $9', gap: '$7' },
+  '@xs': { marginTop: '$3', padding: '$6 $5 $6', gap: '$6' },
   '@lg': {
     gridTemplateColumns: '1fr 1fr',
-    gap: '$9',
-    marginTop: '$7',
-    padding: '$9 max($7, env(safe-area-inset-left, 0px)) $11 max($7, env(safe-area-inset-right, 0px))',
+    gap: '$7',
+    marginTop: '$4',
+    padding: '$7 max($7, env(safe-area-inset-left, 0px)) $7 max($7, env(safe-area-inset-right, 0px))',
   },
 });
 
@@ -187,14 +187,6 @@ const Sub = styled('p', {
   color: '#A1A1AA',
   maxWidth: '520px',
   margin: '0 0 $7 0',
-});
-
-const HeroLeftStack = styled('div', {
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'flex-start',
-  minWidth: 0,
-  width: '100%',
 });
 
 const HeroVisual = styled(motion.div, {
@@ -259,16 +251,6 @@ const Section = styled('section', {
   margin: '0 auto',
   padding: '0 max($4, env(safe-area-inset-left, 0px)) $10 max($4, env(safe-area-inset-right, 0px))',
   '@md': { padding: '0 max($7, env(safe-area-inset-left, 0px)) $11 max($7, env(safe-area-inset-right, 0px))' },
-});
-
-const SectionTitle = styled('h2', {
-  fontFamily: '$poppins',
-  fontWeight: '$semibold',
-  fontSize: '$xl',
-  textAlign: 'center',
-  color: '#FAFAFA',
-  margin: 0,
-  width: '100%',
 });
 
 const CardGrid = styled('div', {
@@ -595,51 +577,38 @@ export default function HomePage() {
               </Header>
 
               <HeroGrid>
-                <HeroLeftStack>
-                  <SectionTitle
-                    id="roadmap"
-                    css={{
-                      textAlign: 'left',
-                      marginBottom: '$7',
-                      '@xs': { marginBottom: '$8' },
-                      '@lg': { marginBottom: '$9' },
-                    }}
+                <div style={{ minWidth: 0, width: '100%' }}>
+                  <Overline>Private governance · Zero-knowledge</Overline>
+                  <HeroTitle>
+                    <UnderlineWord>Cast</UnderlineWord> and <UnderlineWord>Vote</UnderlineWord> on Shielded Proposals.
+                  </HeroTitle>
+                  <Sub>
+                    Anonymous governance on Midnight: prove membership without revealing identity. Your vote stays
+                    private; integrity stays public.
+                  </Sub>
+                  <motion.div
+                    initial={{ opacity: 0, y: 12 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.12, duration: 0.5 }}
+                    style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}
                   >
-                    What to do next
-                  </SectionTitle>
-                  <div>
-                    <Overline>Private governance · Zero-knowledge</Overline>
-                    <HeroTitle>
-                      <UnderlineWord>Cast</UnderlineWord> and <UnderlineWord>Vote</UnderlineWord> on Shielded Proposals.
-                    </HeroTitle>
-                    <Sub>
-                      Anonymous governance on Midnight: prove membership without revealing identity. Your vote stays
-                      private; integrity stays public.
-                    </Sub>
-                    <motion.div
-                      initial={{ opacity: 0, y: 12 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.12, duration: 0.5 }}
-                      style={{ display: 'flex', flexWrap: 'wrap', gap: '16px' }}
+                    <Button type="button" variant="primary" onClick={() => router.push('/dashboard')}>
+                      Get started
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => window.open('https://docs.midnight.network', '_blank')}
+                      style={{
+                        borderColor: 'rgba(255,255,255,0.2)',
+                        backgroundColor: 'transparent',
+                        color: '#E4E4E7',
+                      }}
                     >
-                      <Button type="button" variant="primary" onClick={() => router.push('/dashboard')}>
-                        Get started
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        onClick={() => window.open('https://docs.midnight.network', '_blank')}
-                        style={{
-                          borderColor: 'rgba(255,255,255,0.2)',
-                          backgroundColor: 'transparent',
-                          color: '#E4E4E7',
-                        }}
-                      >
-                        Documentation
-                      </Button>
-                    </motion.div>
-                  </div>
-                </HeroLeftStack>
+                      Documentation
+                    </Button>
+                  </motion.div>
+                </div>
 
                 <HeroVisual>
                   <HeroEmblem />
@@ -651,8 +620,8 @@ export default function HomePage() {
                 </HeroVisual>
               </HeroGrid>
 
-              <Section aria-labelledby="roadmap">
-                <CardGrid css={{ marginTop: '$6', '@md': { marginTop: '$8' } }}>
+              <Section id="roadmap" aria-label="Getting started">
+                <CardGrid css={{ marginTop: '$4', '@md': { marginTop: '$5' } }}>
                   {[
                     {
                       Icon: IconCreateProposal,
