@@ -1,7 +1,7 @@
 'use client';
 
 import { findDeployedContract, getPublicStates } from '@midnight-ntwrk/midnight-js-contracts';
-import type { ContractState, StateValue } from '@midnight-ntwrk/compact-runtime';
+import type { ChargedState, ContractState, StateValue } from '@midnight-ntwrk/compact-runtime';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Subscription } from 'rxjs';
@@ -9,7 +9,7 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
-import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
+import { getAuthorizedVoterLeavesWithDevBypass } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
 import {
@@ -122,12 +122,24 @@ function writeUserFinishedProposals(rows: PastProposalRecord[]) {
   }
 }
 
+/**
+ * `getPublicStates` returns on-chain-runtime {@link ContractState}; `@shadowvote/contract` `ledger()` expects
+ * {@link StateValue} or {@link ChargedState} (it reads `.state` only on the latter — `ContractState` uses `.data`).
+ */
+function contractStateArgForLedgerView(state: ContractState): ChargedState | StateValue {
+  const withData = state as ContractState & { data?: ChargedState };
+  if (withData.data != null) {
+    return withData.data;
+  }
+  return state as unknown as ChargedState;
+}
+
 async function ledgerFromContractState(contractState: ContractState): Promise<{
   proposals: ProposalView[];
   nullifiers: Set<string>;
 }> {
   const mod: ContractMod = await import('@shadowvote/contract');
-  const ledgerView = mod.ledger(contractState as unknown as StateValue);
+  const ledgerView = mod.ledger(contractStateArgForLedgerView(contractState) as unknown as StateValue);
   return {
     proposals: proposalsFromLedger(ledgerView),
     nullifiers: nullifierSetFromLedger(ledgerView),
@@ -343,7 +355,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
       const states = await getPublicStates(publicDataProvider, SHADOWVOTE_ADDRESS);
       await applyContractState(states.contractState);
       const mod: ContractMod = await import('@shadowvote/contract');
-      const ledgerView = mod.ledger(states.contractState as unknown as StateValue);
+      const ledgerView = mod.ledger(contractStateArgForLedgerView(states.contractState) as unknown as StateValue);
       return proposalsFromLedger(ledgerView);
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : 'Failed to load proposals';
@@ -391,7 +403,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
         providersRef.current = providers;
 
-        const registryLeaves = getAuthorizedVoterLeaves();
+        const registryLeaves = getAuthorizedVoterLeavesWithDevBypass(voterSecret);
         const myLeaf = computeVoterLeafHash(voterSecret);
         const inRegistry = registryLeaves.some((L) => bytesEqual(L, myLeaf));
         if (!inRegistry) {

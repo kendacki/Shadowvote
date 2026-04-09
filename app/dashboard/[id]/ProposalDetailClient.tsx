@@ -213,6 +213,7 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   );
 
   const hasVoted = identityReady && shadow.checkHasVoted(String(proposalId));
+  const isSubmitting = shadow.isVoting;
 
   const runVoteWithToast = useCallback(async () => {
     const cast = shadow?.castVote;
@@ -336,10 +337,12 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
                   <Button
                     type="button"
                     variant="primary"
-                    disabled={!identityReady || shadow.isVoting}
+                    disabled={!identityReady || isSubmitting}
                     onClick={() => void runVoteWithToast()}
                   >
-                    {shadow.isVoting ? 'Proving & submitting…' : 'Cast Vote'}
+                    {isSubmitting
+                      ? 'Generating ZK proof — wallet opens next…'
+                      : 'Cast Vote'}
                   </Button>
                 </motion.div>
               )}

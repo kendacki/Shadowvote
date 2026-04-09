@@ -1,5 +1,15 @@
 import { computeVoterLeafHash } from '../utils/merkle';
 
+function leafHexForEnv(leaf: Uint8Array): string {
+  return `0x${Array.from(leaf, (b) => b.toString(16).padStart(2, '0')).join('')}`;
+}
+
+function leavesContainLeaf(leaves: Uint8Array[], leaf: Uint8Array): boolean {
+  return leaves.some(
+    (L) => L.length === leaf.length && L.every((b, i) => b === leaf[i]),
+  );
+}
+
 function parseHex32(entry: string, label: string): Uint8Array {
   let h = entry.trim();
   if (h.startsWith('0x') || h.startsWith('0X')) h = h.slice(2);
@@ -31,4 +41,25 @@ export function getAuthorizedVoterLeaves(): Uint8Array[] {
   return raw.split(',').map((part, i) =>
     parseHex32(part, `VOTER_REGISTRY_LEAVES_HEX / NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX[${i}]`),
   );
+}
+
+/**
+ * Same leaves as {@link getAuthorizedVoterLeaves}, but in **development** ensures the voter
+ * derived from `voterSecret` is included so local ZK paths match without editing `.env`.
+ * Logs `CURRENT VOTER LEAF:` (hex) for copying into `NEXT_PUBLIC_VOTER_REGISTRY_LEAVES_HEX`.
+ */
+export function getAuthorizedVoterLeavesWithDevBypass(voterSecret: Uint8Array | null): Uint8Array[] {
+  const leaves = [...getAuthorizedVoterLeaves()];
+  if (!voterSecret || voterSecret.length !== 32) {
+    return leaves;
+  }
+  const currentUserLeaf = computeVoterLeafHash(voterSecret);
+  console.log('CURRENT VOTER LEAF:', leafHexForEnv(currentUserLeaf));
+  if (process.env.NODE_ENV === 'development' && !leavesContainLeaf(leaves, currentUserLeaf)) {
+    console.warn(
+      '[ShadowVote] Dev bypass: appending CURRENT VOTER LEAF to registry leaves (not for production).',
+    );
+    leaves.push(currentUserLeaf);
+  }
+  return leaves;
 }
