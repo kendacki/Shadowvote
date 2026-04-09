@@ -306,25 +306,6 @@ const CardLink = styled(Link, {
   },
 });
 
-const Partners = styled('div', {
-  display: 'flex',
-  flexWrap: 'wrap',
-  alignItems: 'center',
-  justifyContent: 'center',
-  gap: '$8',
-  padding: '$8 0',
-  opacity: 0.45,
-  filter: 'grayscale(1)',
-});
-
-const PartnerWord = styled('span', {
-  fontFamily: '$poppins',
-  fontWeight: '$semibold',
-  fontSize: '$md',
-  color: '#71717A',
-  letterSpacing: '0.02em',
-});
-
 const Newsletter = styled(motion.div, {
   maxWidth: '960px',
   margin: '0 auto $10',
@@ -709,14 +690,6 @@ export default function HomePage() {
                     </FeatureCard>
                   ))}
                 </CardGrid>
-              </Section>
-
-              <Section aria-label="Partners">
-                <Partners>
-                  {['Midnight', 'Lace', 'Preprod', 'Compact'].map((name) => (
-                    <PartnerWord key={name}>{name}</PartnerWord>
-                  ))}
-                </Partners>
               </Section>
 
               <Section>
