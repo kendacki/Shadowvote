@@ -202,8 +202,8 @@ export function AdminPanel({ syncVoterRegistry, isSyncingRegistry }: AdminPanelP
             fontFamily: '$poppins',
           }}
         >
-          Push the merged voter Merkle root (Supabase + local registry + admin leaf) to Midnight via{' '}
-          <code>update_voter_root</code>.
+          Build the Merkle root from Supabase <code>registered_voters.voter_leaf</code> (plus your admin leaf if
+          needed) and submit <code>update_voter_root</code> on Midnight.
         </Body>
       </HeaderRow>
       <Button type="button" variant="primary" disabled={!wallet.isConnected || isSyncingRegistry} onClick={() => void onSync()}>

@@ -9,7 +9,7 @@ import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
 } from '@/lib/createShadowVoteProviders';
-import { collectLeavesForRegistrySync } from '@/lib/voterLeavesSync';
+import { collectLeavesForRegisteredVotersRootSync } from '@/lib/voterLeavesSync';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
 import { loadCompiledShadowVoteAdminContract } from '@/lib/loadCompiledShadowVoteAdmin';
@@ -496,18 +496,18 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
   );
 
   /**
-   * Merges leaves from Supabase (`voters` / `subscribers` / configured tables), `voter-registry.json`,
-   * and the admin leaf (local voter secret or `NEXT_PUBLIC_ADMIN_VOTER_LEAF_HEX`), then calls `update_voter_root`.
+   * Builds the Merkle root from Supabase `registered_voters.voter_leaf` (plus admin fallback leaf),
+   * then calls `update_voter_root` on-chain.
    */
   const syncVoterRegistry = useCallback(
     async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
       onStage?.('preparing');
       const adminLeaf =
         voterSecret && voterSecret.length === 32 ? computeVoterLeafHash(voterSecret) : null;
-      const leaves = await collectLeavesForRegistrySync(adminLeaf);
+      const leaves = await collectLeavesForRegisteredVotersRootSync(adminLeaf);
       if (leaves.length === 0) {
         const msg =
-          'No voter leaves found — add rows to Supabase (voter leaf column) or config/voter-registry.json.';
+          'No voter leaves in registered_voters — register voters from the dashboard or insert rows in Supabase.';
         setError(msg);
         onStage?.('failed');
         throw new Error(msg);

@@ -1,6 +1,7 @@
 "use client";
 
 import { AdminPanel } from '@/components/AdminPanel';
+import { RegisterToVote } from '@/components/RegisterToVote';
 import { CreateProposalModal } from '@/components/CreateProposalModal';
 import { EmptyState } from '@/components/EmptyState';
 import { LoadingScreen } from '@/components/LoadingScreen';
@@ -190,6 +191,13 @@ const SearchRow = styled('div', {
   width: '100%',
   maxWidth: '560px',
   marginTop: '$5',
+});
+
+const HeroButtonGroup = styled('div', {
+  display: 'flex',
+  flexWrap: 'wrap',
+  alignItems: 'center',
+  gap: '$3',
 });
 
 function LoadingSkeleton() {
@@ -453,14 +461,17 @@ export default function DashboardPage() {
                 )}
               </Subline>
             </TitleBlock>
-            <Button
-              type="button"
-              variant="primary"
-              disabled={!identityReady || isVoting || isSyncingRegistry}
-              onClick={() => setIsModalOpen(true)}
-            >
-              New Proposal
-            </Button>
+            <HeroButtonGroup>
+              <Button
+                type="button"
+                variant="primary"
+                disabled={!identityReady || isVoting || isSyncingRegistry}
+                onClick={() => setIsModalOpen(true)}
+              >
+                New Proposal
+              </Button>
+              <RegisterToVote syncBusy={isVoting || isSyncingRegistry} />
+            </HeroButtonGroup>
             <SearchRow>
               <SearchBar value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} />
             </SearchRow>
