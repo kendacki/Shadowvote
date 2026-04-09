@@ -93,24 +93,32 @@ export async function isWalletRegisteredForEpoch(unshieldedAddress: string): Pro
 }
 
 /**
+ * Merge ordered DB leaves with optional admin / env fallback (same rules as on-chain sync).
+ * Use after {@link fetchLeavesFromRegisteredVotersTable} to avoid duplicate Supabase round-trips.
+ */
+export function mergeRegisteredVotersLeavesForRootSync(
+  orderedDbLeaves: Uint8Array[],
+  adminVoterLeaf: Uint8Array | null,
+): Uint8Array[] {
+  const merged = [...orderedDbLeaves];
+  const envAdminLeaf = parseEnvAdminFallbackLeaf();
+  const adminCandidates = [adminVoterLeaf, envAdminLeaf].filter(
+    (x): x is Uint8Array => x != null && x.length === 32,
+  );
+  for (const leaf of adminCandidates) {
+    if (!merged.some((x) => bytesEqual(x, leaf))) {
+      merged.push(leaf);
+    }
+  }
+  return mergeUniqueLeaves(merged);
+}
+
+/**
  * Admin root sync: Merkle leaves from `registered_voters` (ordered), plus admin leaf(es) not yet in the list.
  */
 export async function collectLeavesForRegisteredVotersRootSync(
   adminVoterLeaf: Uint8Array | null,
 ): Promise<Uint8Array[]> {
   const ordered = await fetchLeavesFromRegisteredVotersTable();
-  const merged = [...ordered];
-
-  const envAdminLeaf = parseEnvAdminFallbackLeaf();
-  const adminCandidates = [adminVoterLeaf, envAdminLeaf].filter(
-    (x): x is Uint8Array => x != null && x.length === 32,
-  );
-
-  for (const leaf of adminCandidates) {
-    if (!merged.some((x) => bytesEqual(x, leaf))) {
-      merged.push(leaf);
-    }
-  }
-
-  return mergeUniqueLeaves(merged);
+  return mergeRegisteredVotersLeavesForRootSync(ordered, adminVoterLeaf);
 }

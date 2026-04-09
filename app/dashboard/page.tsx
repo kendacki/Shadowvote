@@ -261,12 +261,20 @@ export default function DashboardPage() {
     return [...byId.values()].sort((a, b) => a.id - b.id);
   }, [allProposals, supabaseAsProposalViews]);
 
+  const offChainRowByProposalId = useMemo(() => {
+    const m = new Map<string, OffChainProposalRow>();
+    for (const r of offChainProposals) {
+      m.set(String(r.id), r);
+    }
+    return m;
+  }, [offChainProposals]);
+
   const statusFilteredActiveProposals = useMemo(() => {
     return allProposalsUnified.filter((p) => {
-      const row = offChainProposals.find((r) => String(r.id) === String(p.id));
+      const row = offChainRowByProposalId.get(String(p.id));
       return isActiveLifecycleRow(row);
     });
-  }, [allProposalsUnified, offChainProposals]);
+  }, [allProposalsUnified, offChainRowByProposalId]);
 
   const supabasePastRecords = useMemo(
     () => offChainProposals.filter(isPastLifecycleRow).map(offChainRowToPastRecord),
@@ -285,28 +293,28 @@ export default function DashboardPage() {
 
   const filteredActiveProposals = useMemo(() => {
     if (!searchNormalized) return statusFilteredActiveProposals;
+    let titleMap: Record<string, string> = {};
+    let descMap: Record<string, string> = {};
+    try {
+      const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
+      titleMap = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    } catch {
+      /* ignore */
+    }
+    try {
+      const dr = localStorage.getItem('shadowvote.proposalDescriptions.v1');
+      descMap = dr ? (JSON.parse(dr) as Record<string, string>) : {};
+    } catch {
+      /* ignore */
+    }
     return statusFilteredActiveProposals.filter((p) => {
-      let titleLs = '';
-      try {
-        const raw = localStorage.getItem('shadowvote.proposalTitles.v1');
-        const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-        const t = map[String(p.id)];
-        titleLs = typeof t === 'string' ? t.toLowerCase() : '';
-      } catch {
-        /* ignore */
-      }
-      const matchRow = offChainProposals.find((r) => String(r.id) === String(p.id));
+      const t = titleMap[String(p.id)];
+      const titleLs = typeof t === 'string' ? t.toLowerCase() : '';
+      const matchRow = offChainRowByProposalId.get(String(p.id));
       const sbTitle = matchRow?.title?.toLowerCase() ?? '';
       const sbDesc = matchRow?.description?.toLowerCase() ?? '';
-      let descLs = '';
-      try {
-        const dr = localStorage.getItem('shadowvote.proposalDescriptions.v1');
-        const dm = dr ? (JSON.parse(dr) as Record<string, string>) : {};
-        const d = dm[String(p.id)];
-        descLs = typeof d === 'string' ? d.toLowerCase() : '';
-      } catch {
-        /* ignore */
-      }
+      const d = descMap[String(p.id)];
+      const descLs = typeof d === 'string' ? d.toLowerCase() : '';
       return (
         String(p.id).toLowerCase().includes(searchNormalized) ||
         titleLs.includes(searchNormalized) ||
@@ -315,7 +323,7 @@ export default function DashboardPage() {
         descLs.includes(searchNormalized)
       );
     });
-  }, [statusFilteredActiveProposals, offChainProposals, searchNormalized, searchQuery]);
+  }, [statusFilteredActiveProposals, offChainRowByProposalId, searchNormalized, searchQuery]);
 
   const filteredPastProposals = useMemo(() => {
     if (!searchNormalized) return allPastForGrid;

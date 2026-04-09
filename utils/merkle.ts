@@ -148,6 +148,15 @@ export function buildMerklePathWitness(
   return cloneWitness({ leaf: new Uint8Array(targetLeaf), path });
 }
 
+function yieldToMain(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0);
+  });
+}
+
+/** Hash steps between yields so the dashboard stays interactive (full tree = 2^20 leaves). */
+const ROOT_ASYNC_YIELD_EVERY = 4096;
+
 /** Root field element for the same packing as {@link buildMerklePathWitness} (constructor `initialVoterRoot`). */
 export function computeVoterRegistryRootField(
   authorizedLeaves: Uint8Array[],
@@ -169,6 +178,45 @@ export function computeVoterRegistryRootField(
     const next = new Array<bigint>(nextLen);
     for (let i = 0; i < nextLen; i++) {
       next[i] = hashChildren(level[2 * i], level[2 * i + 1]);
+    }
+    level = next;
+  }
+  return level[0];
+}
+
+/**
+ * Same root as {@link computeVoterRegistryRootField}, but yields to the event loop periodically so
+ * the tab stays responsive (used for dashboard epoch checks, not hot ZK paths).
+ */
+export async function computeVoterRegistryRootFieldAsync(
+  authorizedLeaves: Uint8Array[],
+  emptyLeaf: Uint8Array = new Uint8Array(32),
+): Promise<bigint> {
+  if (authorizedLeaves.length > TREE_LEAF_COUNT) {
+    throw new Error(`At most ${TREE_LEAF_COUNT} authorized leaves supported`);
+  }
+  const rawLeaves: Uint8Array[] = new Array(TREE_LEAF_COUNT);
+  for (let i = 0; i < TREE_LEAF_COUNT; i++) {
+    rawLeaves[i] = i < authorizedLeaves.length ? authorizedLeaves[i] : emptyLeaf;
+    if (i > 0 && i % ROOT_ASYNC_YIELD_EVERY === 0) {
+      await yieldToMain();
+    }
+  }
+  let level: bigint[] = new Array(TREE_LEAF_COUNT);
+  for (let i = 0; i < TREE_LEAF_COUNT; i++) {
+    level[i] = leaf32ToMerkleField(rawLeaves[i]);
+    if (i > 0 && i % ROOT_ASYNC_YIELD_EVERY === 0) {
+      await yieldToMain();
+    }
+  }
+  while (level.length > 1) {
+    const nextLen = level.length >> 1;
+    const next = new Array<bigint>(nextLen);
+    for (let i = 0; i < nextLen; i++) {
+      next[i] = hashChildren(level[2 * i], level[2 * i + 1]);
+      if (i > 0 && i % ROOT_ASYNC_YIELD_EVERY === 0) {
+        await yieldToMain();
+      }
     }
     level = next;
   }

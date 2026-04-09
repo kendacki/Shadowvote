@@ -4,7 +4,7 @@ import { findDeployedContract, getPublicStates } from '@midnight-ntwrk/midnight-
 import type { ChargedState, ContractState, StateValue } from '@midnight-ntwrk/compact-runtime';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Subscription } from 'rxjs';
+import { auditTime, Subscription } from 'rxjs';
 import {
   createShadowVoteProviders,
   createShadowVotePublicDataProvider,
@@ -13,6 +13,7 @@ import {
   collectLeavesForRegisteredVotersRootSync,
   fetchLeavesFromRegisteredVotersTable,
   isWalletRegisteredForEpoch,
+  mergeRegisteredVotersLeavesForRootSync,
 } from '@/lib/voterLeavesSync';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
@@ -27,6 +28,7 @@ import {
   bytesEqual,
   computeVoterLeafHash,
   computeVoterRegistryRootField,
+  computeVoterRegistryRootFieldAsync,
 } from '../utils/merkle';
 
 export type ProposalView = {
@@ -126,26 +128,25 @@ function contractStateArgForLedgerView(state: ContractState): ChargedState | Sta
   return state as unknown as ChargedState;
 }
 
-async function ledgerFromContractState(contractState: ContractState): Promise<{
+/** Single `@shadowvote/contract` import + `ledger()` call per indexer emission (was doubling work). */
+async function ledgerSnapshotFromContractState(contractState: ContractState): Promise<{
   proposals: ProposalView[];
   nullifiers: Set<string>;
+  rootField: bigint | null;
 }> {
   const mod: ContractMod = await import('@shadowvote/contract');
   const ledgerView = mod.ledger(contractStateArgForLedgerView(contractState) as unknown as StateValue);
+  let rootField: bigint | null = null;
+  try {
+    rootField = ledgerView.voterRoot.field;
+  } catch {
+    rootField = null;
+  }
   return {
     proposals: proposalsFromLedger(ledgerView),
     nullifiers: nullifierSetFromLedger(ledgerView),
+    rootField,
   };
-}
-
-async function readChainVoterRootField(contractState: ContractState): Promise<bigint | null> {
-  try {
-    const mod: ContractMod = await import('@shadowvote/contract');
-    const ledgerView = mod.ledger(contractStateArgForLedgerView(contractState) as unknown as StateValue);
-    return ledgerView.voterRoot.field;
-  } catch {
-    return null;
-  }
 }
 
 /** Optional wallet surface for epoch / Supabase gating (e.g. unshielded bech32). */
@@ -293,8 +294,9 @@ export function useShadowVote(
 
   const applyContractState = useCallback(async (contractState: ContractState) => {
     const gen = ++applyLedgerGenerationRef.current;
-    const { proposals: next, nullifiers: nextNulls } = await ledgerFromContractState(contractState);
-    const rootField = await readChainVoterRootField(contractState);
+    const { proposals: next, nullifiers: nextNulls, rootField } = await ledgerSnapshotFromContractState(
+      contractState,
+    );
     if (gen !== applyLedgerGenerationRef.current) return;
 
     setSyncError(null);
@@ -357,6 +359,7 @@ export function useShadowVote(
 
         sub = publicDataProvider
           .contractStateObservable(SHADOWVOTE_ADDRESS, { type: 'latest' })
+          .pipe(auditTime(500))
           .subscribe({
             next: (state) => {
               void applyContractState(state).catch(() => {
@@ -404,17 +407,11 @@ export function useShadowVote(
       await new Promise<void>((resolve) => {
         window.setTimeout(resolve, 0);
       });
-      const leavesMerged = await collectLeavesForRegisteredVotersRootSync(null);
-      const rootMerged = computeVoterRegistryRootField(leavesMerged);
-      let dbOnlyRoot: bigint | null = null;
-      try {
-        const dbLeaves = await fetchLeavesFromRegisteredVotersTable();
-        if (dbLeaves.length > 0) {
-          dbOnlyRoot = computeVoterRegistryRootField(dbLeaves);
-        }
-      } catch {
-        dbOnlyRoot = null;
-      }
+      const ordered = await fetchLeavesFromRegisteredVotersTable();
+      const leavesMerged = mergeRegisteredVotersLeavesForRootSync(ordered, null);
+      const rootMerged = await computeVoterRegistryRootFieldAsync(leavesMerged);
+      const dbOnlyRoot =
+        ordered.length > 0 ? await computeVoterRegistryRootFieldAsync(ordered) : null;
       const synced = rootMerged === chainRoot || (dbOnlyRoot !== null && dbOnlyRoot === chainRoot);
       setIsEpochSynced(synced);
 
@@ -427,11 +424,10 @@ export function useShadowVote(
       if (vs != null && vs.length === 32) {
         try {
           const jsonLeaves = getAuthorizedVoterLeaves();
-          const jsonRoot = computeVoterRegistryRootField(jsonLeaves);
+          const jsonRoot = await computeVoterRegistryRootFieldAsync(jsonLeaves);
           if (jsonRoot === chainRoot) {
             const myLeaf = computeVoterLeafHash(vs);
-            buildMerklePathWitness(myLeaf, jsonLeaves);
-            legacyJsonMatchesChain = true;
+            legacyJsonMatchesChain = jsonLeaves.some((L) => bytesEqual(L, myLeaf));
           }
         } catch {
           legacyJsonMatchesChain = false;
@@ -454,19 +450,19 @@ export function useShadowVote(
       return;
     }
     let cancelled = false;
-    void (async () => {
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 0);
-      });
-      if (cancelled) return;
-      try {
-        await checkEpochSync();
-      } catch (e: unknown) {
-        console.warn('[ShadowVote] scheduled checkEpochSync rejected', e);
-      }
-    })();
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        if (cancelled) return;
+        try {
+          await checkEpochSync();
+        } catch (e: unknown) {
+          console.warn('[ShadowVote] scheduled checkEpochSync rejected', e);
+        }
+      })();
+    }, 600);
     return () => {
       cancelled = true;
+      window.clearTimeout(timer);
     };
   }, [connectedApi, chainRootKey, unshieldedAddressKey, voterSecretFingerprint, checkEpochSync]);
 
