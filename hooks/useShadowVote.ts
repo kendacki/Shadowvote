@@ -363,8 +363,9 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         const myLeaf = computeVoterLeafHash(voterSecret);
         const inRegistry = registryLeaves.some((L) => bytesEqual(L, myLeaf));
         if (!inRegistry) {
+          console.log('CURRENT VOTER LEAF (paste into config/voter-registry.json `leaves`, then redeploy):', `0x${bytes32ToLowerHex(myLeaf)}`);
           throw new Error(
-            'Your voter leaf is not in config/voter-registry.json — add your CURRENT VOTER LEAF (console) to `leaves` and redeploy.',
+            'Your voter leaf is not in config/voter-registry.json — add the hex above to `leaves` and redeploy.',
           );
         }
         const membershipPath = buildMerklePathWitness(myLeaf, registryLeaves);
