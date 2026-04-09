@@ -32,58 +32,6 @@
         "type-name": "Bytes",
         "length": 32
       }
-    },
-    {
-      "name": "voterMembershipPath",
-      "arguments": [
-      ],
-      "result type": {
-        "type-name": "Struct",
-        "name": "MerkleTreePath",
-        "elements": [
-          {
-            "name": "leaf",
-            "type": {
-              "type-name": "Bytes",
-              "length": 32
-            }
-          },
-          {
-            "name": "path",
-            "type": {
-              "type-name": "Vector",
-              "length": 20,
-              "type": {
-                "type-name": "Struct",
-                "name": "MerkleTreePathEntry",
-                "elements": [
-                  {
-                    "name": "sibling",
-                    "type": {
-                      "type-name": "Struct",
-                      "name": "MerkleTreeDigest",
-                      "elements": [
-                        {
-                          "name": "field",
-                          "type": {
-                            "type-name": "Field"
-                          }
-                        }
-                      ]
-                    }
-                  },
-                  {
-                    "name": "goes_left",
-                    "type": {
-                      "type-name": "Boolean"
-                    }
-                  }
-                ]
-              }
-            }
-          }
-        ]
-      }
     }
   ],
   "contracts": [

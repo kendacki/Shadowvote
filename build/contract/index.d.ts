@@ -2,12 +2,6 @@ import type * as __compactRuntime from '@midnight-ntwrk/compact-runtime';
 
 export type Witnesses<PS> = {
   voterSecret(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, Uint8Array];
-  voterMembershipPath(context: __compactRuntime.WitnessContext<Ledger, PS>): [PS, { leaf: Uint8Array,
-                                                                                    path: { sibling: { field: bigint
-                                                                                                     },
-                                                                                            goes_left: boolean
-                                                                                          }[]
-                                                                                  }];
 }
 
 export type ImpureCircuits<PS> = {
@@ -39,7 +33,6 @@ export type Ledger = {
     member(elem_0: Uint8Array): boolean;
     [Symbol.iterator](): Iterator<Uint8Array>
   };
-  readonly voterRoot: { field: bigint };
 }
 
 export type ContractReferenceLocations = any;
@@ -52,8 +45,7 @@ export declare class Contract<PS = any, W extends Witnesses<PS> = Witnesses<PS>>
   impureCircuits: ImpureCircuits<PS>;
   provableCircuits: ProvableCircuits<PS>;
   constructor(witnesses: W);
-  initialState(context: __compactRuntime.ConstructorContext<PS>,
-               initialVoterRoot_0: { field: bigint }): __compactRuntime.ConstructorResult<PS>;
+  initialState(context: __compactRuntime.ConstructorContext<PS>): __compactRuntime.ConstructorResult<PS>;
 }
 
 export declare function ledger(state: __compactRuntime.StateValue | __compactRuntime.ChargedState): Ledger;
