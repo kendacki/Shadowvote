@@ -11,13 +11,16 @@ import {
 } from '@/lib/createShadowVoteProviders';
 import { getAuthorizedVoterLeaves } from '@/lib/voterRegistry';
 import { loadCompiledShadowVoteContract } from '@/lib/loadCompiledShadowVote';
+import { loadCompiledShadowVoteAdminContract } from '@/lib/loadCompiledShadowVoteAdmin';
 import { SHADOWVOTE_ADDRESS, SHADOWVOTE_PRIVATE_STATE_ID } from '@/src/config/contracts';
 import { MOCK_PAST_PROPOSALS } from '@/utils/mockData';
+import { assertMinGovernanceBalance } from '@/utils/tNightGate';
 import { classifyVoteFailure, computeVoteNullifier, bytes32ToLowerHex } from '../utils/crypto';
 import {
   buildMerklePathWitness,
   bytesEqual,
   computeVoterLeafHash,
+  computeVoterRegistryRootField,
 } from '../utils/merkle';
 
 export type ProposalView = {
@@ -34,6 +37,7 @@ export type VoteTxStage =
   | 'failed'
   | 'failed_user_rejected'
   | 'failed_already_voted'
+  | 'failed_insufficient_balance'
   | 'failed_network';
 
 type ContractMod = typeof import('@shadowvote/contract');
@@ -349,6 +353,16 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         onStage?.('failed');
         throw new Error('Wallet not connected');
       }
+      try {
+        await assertMinGovernanceBalance(connectedApi);
+      } catch (e: unknown) {
+        const kind = classifyVoteFailure(e);
+        if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
+        else onStage?.('failed');
+        const msg = e instanceof Error ? e.message : 'Balance check failed';
+        setError(msg);
+        throw e;
+      }
       if (!voterSecret || voterSecret.length !== 32) {
         onStage?.('failed');
         throw new Error('Voter identity not ready — wait for local identity to load.');
@@ -363,9 +377,12 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         const myLeaf = computeVoterLeafHash(voterSecret);
         const inRegistry = registryLeaves.some((L) => bytesEqual(L, myLeaf));
         if (!inRegistry) {
-          console.log('CURRENT VOTER LEAF (paste into config/voter-registry.json `leaves`, then redeploy):', `0x${bytes32ToLowerHex(myLeaf)}`);
+          console.log(
+            'CURRENT VOTER LEAF — add to config/voter-registry.json `leaves`, then redeploy or admin sync root:',
+            `0x${bytes32ToLowerHex(myLeaf)}`,
+          );
           throw new Error(
-            'Your voter leaf is not in config/voter-registry.json — add the hex above to `leaves` and redeploy.',
+            'Your voter leaf is not in config/voter-registry.json — add the hex above to `leaves`, then redeploy or update the on-chain root (admin).',
           );
         }
         const membershipPath = buildMerklePathWitness(myLeaf, registryLeaves);
@@ -389,6 +406,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
         const kind = classifyVoteFailure(e);
         if (kind === 'user_rejected') onStage?.('failed_user_rejected');
         else if (kind === 'already_voted') onStage?.('failed_already_voted');
+        else if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
         else if (kind === 'network') onStage?.('failed_network');
         else onStage?.('failed');
         const msg = e instanceof Error ? e.message : 'Vote failed';
@@ -401,6 +419,63 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     [connectedApi, voterSecret, fetchProposals],
   );
 
+  const updateVoterRootFromRegistry = useCallback(
+    async (adminPreimage32: Uint8Array, onStage?: (stage: VoteTxStage) => void) => {
+      setError(null);
+      if (!connectedApi) {
+        onStage?.('failed');
+        throw new Error('Wallet not connected');
+      }
+      try {
+        await assertMinGovernanceBalance(connectedApi);
+      } catch (e: unknown) {
+        const kind = classifyVoteFailure(e);
+        if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
+        else onStage?.('failed');
+        throw e;
+      }
+      setIsVoting(true);
+      try {
+        onStage?.('preparing');
+        const providers = providersRef.current ?? (await createShadowVoteProviders(connectedApi));
+        providersRef.current = providers;
+        const leaves = getAuthorizedVoterLeaves();
+        const rootField = computeVoterRegistryRootField(leaves);
+        const compiled = await loadCompiledShadowVoteAdminContract(adminPreimage32);
+        onStage?.('proving');
+        const found = await findDeployedContract(providers as never, {
+          compiledContract: compiled as never,
+          contractAddress: SHADOWVOTE_ADDRESS,
+          privateStateId: SHADOWVOTE_PRIVATE_STATE_ID,
+          initialPrivateState: {},
+        });
+        const callTx = found.callTx as typeof found.callTx & {
+          update_voter_root?: (digest: { field: bigint }) => Promise<unknown>;
+        };
+        if (typeof callTx.update_voter_root !== 'function') {
+          throw new Error(
+            'This deployment uses an older ShadowVote contract — run npm run compile:contract, deploy again, and sync ZK artifacts (zk:public).',
+          );
+        }
+        onStage?.('submitting');
+        await callTx.update_voter_root({ field: rootField });
+        onStage?.('confirmed');
+        await fetchProposals();
+      } catch (e: unknown) {
+        const kind = classifyVoteFailure(e);
+        if (kind === 'user_rejected') onStage?.('failed_user_rejected');
+        else if (kind === 'insufficient_balance') onStage?.('failed_insufficient_balance');
+        else if (kind === 'network') onStage?.('failed_network');
+        else onStage?.('failed');
+        setError(e instanceof Error ? e.message : 'update_voter_root failed');
+        throw e;
+      } finally {
+        setIsVoting(false);
+      }
+    },
+    [connectedApi, fetchProposals],
+  );
+
   return {
     proposals,
     allProposals,
@@ -409,6 +484,7 @@ export function useShadowVote(connectedApi: ConnectedAPI | null, voterSecret: Ui
     registerPendingProposal,
     fetchProposals,
     castVote,
+    updateVoterRootFromRegistry,
     checkHasVoted,
     isLoadingProposals,
     isVoting,

@@ -130,7 +130,7 @@ function createLaceWalletAndMidnight(
   return { walletProvider, midnightProvider };
 }
 
-export type ShadowVoteCircuitId = 'vote';
+export type ShadowVoteCircuitId = 'vote' | 'update_voter_root';
 
 /**
  * Builds full {@link ContractProviders} for ShadowVote using wallet services from Lace.

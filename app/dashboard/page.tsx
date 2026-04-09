@@ -8,15 +8,17 @@ import { ProposalCard } from '@/components/ProposalCard';
 import { SearchBar } from '@/components/SearchBar';
 import { Body, H2 } from '@/components/Typography';
 import { Button } from '@/components/Button';
+import { useToast } from '@/contexts/ToastContext';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
-import { useShadowVote, type ProposalView } from '@/hooks/useShadowVote';
+import { useShadowVote, type ProposalView, type VoteTxStage } from '@/hooks/useShadowVote';
 import { useSupabaseSync, type OffChainProposalRow } from '@/hooks/useSupabaseSync';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
 import { styled } from '@/stitches.config';
 import { motion } from 'framer-motion';
 import { useRouter } from 'next/navigation';
 import { MOCK_PAST_PROPOSALS, pickUserHistoryImage, type PastProposalRecord } from '@/utils/mockData';
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { GOVERNANCE_MIN_TNIGHT } from '@/utils/tNightGate';
+import { useCallback, useMemo, useRef, useState, type ReactNode } from 'react';
 
 function normalizeLifecycleStatus(s: string | undefined): string {
   return (s ?? '').trim().toLowerCase();
@@ -102,6 +104,7 @@ const Subline = styled('p', {
   fontSize: '$sm',
   color: '$gray500',
   lineHeight: 1.5,
+  userSelect: 'none',
 });
 
 const ProposalGrid = styled('div', {
@@ -200,11 +203,94 @@ function LoadingSkeleton() {
   );
 }
 
+function parseAdminPreimageHex(hex: string): Uint8Array {
+  const normalized = hex.trim().replace(/^0x/i, '');
+  if (!/^[0-9a-fA-F]{64}$/.test(normalized)) {
+    throw new Error('Admin preimage must be exactly 64 hexadecimal characters.');
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < 32; i++) {
+    out[i] = parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+function applyAdminRootStageToast(
+  toast: ReturnType<typeof useToast>,
+  toastId: string,
+  stage: VoteTxStage,
+) {
+  switch (stage) {
+    case 'preparing':
+      toast.update(toastId, {
+        variant: 'loading',
+        title: 'Preparing',
+        message: 'Loading contract and registry Merkle root…',
+      });
+      break;
+    case 'proving':
+      toast.update(toastId, {
+        variant: 'loading',
+        title: 'Generating ZK proof',
+        message: 'Proving update_voter_root…',
+      });
+      break;
+    case 'submitting':
+      toast.update(toastId, {
+        variant: 'loading',
+        title: 'Submitting',
+        message: 'Signing and sending the root update via Lace.',
+      });
+      break;
+    case 'confirmed':
+      toast.update(toastId, {
+        variant: 'success',
+        title: 'Root updated',
+        message: 'On-chain voter Merkle root now matches config/voter-registry.json.',
+      });
+      break;
+    case 'failed_insufficient_balance':
+      toast.update(toastId, {
+        variant: 'error',
+        title: 'Insufficient tNIGHT',
+        message: 'Fund your unshielded balance to pay fees for the admin transaction.',
+      });
+      break;
+    case 'failed_user_rejected':
+      toast.update(toastId, {
+        variant: 'error',
+        title: 'Cancelled',
+        message: 'The wallet did not submit the transaction.',
+      });
+      break;
+    case 'failed_network':
+      toast.update(toastId, {
+        variant: 'error',
+        title: 'Network error',
+        message: 'Could not complete the request.',
+      });
+      break;
+    case 'failed':
+      toast.update(toastId, {
+        variant: 'error',
+        title: 'Update failed',
+        message: 'See error details in the alert below.',
+      });
+      break;
+    default:
+      break;
+  }
+}
+
 export default function DashboardPage() {
   const router = useRouter();
+  const toast = useToast();
   const wallet = useMidnightWallet();
-  const api = wallet?.getConnectedApi?.() ?? null;
-  const identity = useVoterIdentity();
+  const api = wallet.isConnected ? wallet.getConnectedApi() : null;
+  const identity = useVoterIdentity(api, {
+    isWalletConnected: wallet.isConnected,
+    tNightBalance: wallet.tNightBalance,
+  });
   const shadowVote = useShadowVote(api, identity?.voterSecret ?? null);
   const { offChainProposals } = useSupabaseSync();
 
@@ -315,6 +401,45 @@ export default function DashboardPage() {
 
   const identityReady =
     Boolean(identity?.isReady) && identity?.voterSecret != null && identity.voterSecret.length === 32;
+
+  const adminTapRef = useRef({ count: 0, at: 0 });
+  const [adminPanelRevealed, setAdminPanelRevealed] = useState(false);
+  const bumpAdminPanelUnlock = useCallback(() => {
+    const now = Date.now();
+    if (now - adminTapRef.current.at > 1600) adminTapRef.current.count = 0;
+    adminTapRef.current.at = now;
+    adminTapRef.current.count += 1;
+    if (adminTapRef.current.count >= 3) {
+      setAdminPanelRevealed(true);
+      adminTapRef.current.count = 0;
+    }
+  }, []);
+
+  const deployerUnshielded = process.env.NEXT_PUBLIC_SHADOWVOTE_DEPLOYER_UNSHIELDED?.trim() ?? '';
+  const isDeployerWallet =
+    deployerUnshielded.length > 0 &&
+    wallet.unshieldedAddress != null &&
+    deployerUnshielded.toLowerCase() === wallet.unshieldedAddress.toLowerCase();
+
+  const runAdminRootSync = useCallback(async () => {
+    const hex = typeof window !== 'undefined' ? window.prompt('Admin preimage (64 hex chars)', '') : null;
+    if (!hex) return;
+    let preimage: Uint8Array;
+    try {
+      preimage = parseAdminPreimageHex(hex);
+    } catch (e: unknown) {
+      toast.error('Invalid preimage', e instanceof Error ? e.message : 'Invalid input');
+      return;
+    }
+    const fn = shadowVote?.updateVoterRootFromRegistry;
+    if (typeof fn !== 'function') return;
+    const toastId = toast.loading('Preparing', 'Syncing voter Merkle root…');
+    try {
+      await fn(preimage, (stage) => applyAdminRootStageToast(toast, toastId, stage));
+    } catch {
+      /* toast + shadowVote.error */
+    }
+  }, [shadowVote, toast]);
 
   const registerPending = shadowVote?.registerPendingProposal;
 
@@ -434,10 +559,17 @@ export default function DashboardPage() {
           <Hero>
             <TitleBlock>
               <PageTitle>Governance Dashboard</PageTitle>
-              <Subline>
-                {identityReady
-                  ? 'Voter identity ready below — create or open a proposal.'
-                  : 'Preparing secure voter identity…'}
+              <Subline onClick={bumpAdminPanelUnlock}>
+                {identity.blockedByFundThreshold ? (
+                  <>
+                    Insufficient tNIGHT: you need at least {GOVERNANCE_MIN_TNIGHT.toString()} unshielded testnet tNIGHT
+                    in Lace before this browser can generate your voter credential and cast votes.
+                  </>
+                ) : identityReady ? (
+                  'Voter identity ready below — create or open a proposal.'
+                ) : (
+                  'Preparing secure voter identity…'
+                )}
               </Subline>
             </TitleBlock>
             <Button
@@ -455,6 +587,37 @@ export default function DashboardPage() {
 
           {wallet?.error ? (
             <Body css={{ color: '$red400', marginBottom: '$4', fontFamily: '$poppins' }}>{wallet.error}</Body>
+          ) : null}
+
+          {adminPanelRevealed && isDeployerWallet ? (
+            <motion.div
+              initial={{ opacity: 0, y: -4 }}
+              animate={{ opacity: 1, y: 0 }}
+              style={{
+                marginBottom: 20,
+                padding: 16,
+                borderRadius: 8,
+                border: '1px solid #FECACA',
+                backgroundColor: 'rgba(254, 202, 202, 0.25)',
+              }}
+            >
+              <Body
+                css={{
+                  fontFamily: '$poppins',
+                  fontSize: '$sm',
+                  color: '$gray700',
+                  marginBottom: '$3',
+                  marginTop: 0,
+                }}
+              >
+                Admin: push the Merkle root from <code>config/voter-registry.json</code> on-chain (
+                <code>update_voter_root</code>). Requires a contract built from the latest{' '}
+                <code>shadowvote.compact</code> and matching ZK artifacts.
+              </Body>
+              <Button type="button" variant="secondary" disabled={isVoting} onClick={() => void runAdminRootSync()}>
+                {isVoting ? 'Working…' : 'Sync on-chain voter root'}
+              </Button>
+            </motion.div>
           ) : null}
 
           {syncError ? (

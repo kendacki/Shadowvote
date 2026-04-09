@@ -16,6 +16,7 @@ import {
   Subscription,
   switchMap,
 } from 'rxjs';
+import { readUnshieldedTNightBalance } from '@/utils/tNightGate';
 
 const NETWORK_ID = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK_ID ?? 'preprod';
 const POLL_MS = 4000;
@@ -30,21 +31,12 @@ function getLaceConnector(): { connect: (networkId: string) => Promise<Connected
   return first ? (first as { connect: (n: string) => Promise<ConnectedAPI> }) : null;
 }
 
-function sumUnshieldedBalances(balances: Record<string, bigint>): bigint {
-  const preferred = process.env.NEXT_PUBLIC_NIGHT_TOKEN_KEY;
-  if (preferred && balances[preferred] !== undefined) return balances[preferred];
-  return Object.values(balances).reduce((a, b) => a + b, 0n);
-}
-
 async function readWalletSnapshot(api: ConnectedAPI): Promise<{
   address: string;
   tNight: bigint;
 }> {
-  const [{ unshieldedAddress }, balances] = await Promise.all([
-    api.getUnshieldedAddress(),
-    api.getUnshieldedBalances(),
-  ]);
-  const tNight = sumUnshieldedBalances(balances);
+  const { unshieldedAddress } = await api.getUnshieldedAddress();
+  const tNight = await readUnshieldedTNightBalance(api);
   return { address: unshieldedAddress, tNight };
 }
 

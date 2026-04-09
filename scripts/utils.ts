@@ -3,6 +3,7 @@
  * FULL PROVIDER SUITE: Required for shielded contract deployment.
  */
 import 'dotenv/config';
+import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { WebSocket } from 'ws';
@@ -47,13 +48,21 @@ export const CONFIG = {
   proofServer: process.env.PROOF_SERVER_URL ?? 'http://127.0.0.1:6300',
 };
 
+function shadowvoteCompactHasAdminPreimageWitness(): boolean {
+  try {
+    const src = fs.readFileSync(path.join(projectRoot, 'contracts', 'shadowvote.compact'), 'utf8');
+    return /witness\s+adminPreimage\s*\(\s*\)/.test(src);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * `withVacantWitnesses` sets `witnesses: {}` and only works for contracts with **no** witnesses.
- * ShadowVote declares `voterSecret` + `voterMembershipPath`, so the generated `Contract` ctor
- * requires both as functions. These stubs satisfy deploy-time proving; replace with real witnesses
- * when calling `vote` from the app.
+ * ShadowVote declares `voterSecret` + `voterMembershipPath` (+ optional `adminPreimage`), so the
+ * generated `Contract` ctor requires matching functions. These stubs satisfy deploy-time proving.
  */
-function createDeployWitnessStubs() {
+export function createDeployWitnessStubs() {
   const zero32 = new Uint8Array(32);
   const pathEntry = () => ({
     sibling: { field: 0n },
@@ -63,7 +72,7 @@ function createDeployWitnessStubs() {
     leaf: zero32,
     path: Array.from({ length: 20 }, pathEntry),
   };
-  return {
+  const base = {
     voterSecret: (ctx: WitnessContext<unknown, unknown>): [unknown, Uint8Array] => [
       ctx.privateState,
       zero32,
@@ -71,6 +80,16 @@ function createDeployWitnessStubs() {
     voterMembershipPath: (ctx: WitnessContext<unknown, unknown>): [unknown, typeof emptyMembershipPath] => [
       ctx.privateState,
       emptyMembershipPath,
+    ],
+  };
+  if (!shadowvoteCompactHasAdminPreimageWitness()) {
+    return base;
+  }
+  return {
+    ...base,
+    adminPreimage: (ctx: WitnessContext<unknown, unknown>): [unknown, Uint8Array] => [
+      ctx.privateState,
+      zero32,
     ],
   };
 }
@@ -177,7 +196,7 @@ export async function createProviders(walletCtx: Awaited<ReturnType<typeof creat
     }
   };
 
-  const zkConfigProvider = new NodeZkConfigProvider<'vote'>(zkConfigPath);
+  const zkConfigProvider = new NodeZkConfigProvider<'vote' | 'update_voter_root'>(zkConfigPath);
   
   return {
     privateStateProvider: levelPrivateStateProvider({

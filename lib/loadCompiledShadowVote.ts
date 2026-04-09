@@ -43,16 +43,24 @@ export async function loadCompiledShadowVoteContract(
         )}`.replace(/\/$/, '')
       : (process.env.NEXT_PUBLIC_SHADOWVOTE_ZK_BASE ?? '/shadowvote-zk');
 
-  const witnesses = {
+  const zero32 = new Uint8Array(32);
+  const witnesses: {
     voterSecret: (
       ctx: WitnessContext<unknown, Record<string, never>>,
-    ): [Record<string, never>, Uint8Array] => [ctx.privateState, secretCopy],
+    ) => [Record<string, never>, Uint8Array];
     voterMembershipPath: (
       ctx: WitnessContext<unknown, Record<string, never>>,
-    ): [
+    ) => [
       Record<string, never>,
       { leaf: Uint8Array; path: { sibling: { field: bigint }; goes_left: boolean }[] },
-    ] => [ctx.privateState, pathSnapshot],
+    ];
+    adminPreimage?: (
+      ctx: WitnessContext<unknown, Record<string, never>>,
+    ) => [Record<string, never>, Uint8Array];
+  } = {
+    voterSecret: (ctx) => [ctx.privateState, secretCopy],
+    voterMembershipPath: (ctx) => [ctx.privateState, pathSnapshot],
+    adminPreimage: (ctx) => [ctx.privateState, zero32],
   };
 
   return CompiledContract.withCompiledFileAssets(

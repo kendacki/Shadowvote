@@ -9,6 +9,7 @@ import {
   convertFieldToBytes,
   persistentHash,
 } from '@midnight-ntwrk/compact-runtime';
+import { isInsufficientGovernanceError } from '@/utils/tNightGate';
 
 /** `pad(32, "shadowvote:nullifier:v1")` from the compiled contract. */
 export const NULLIFIER_DOMAIN_PAD = new Uint8Array([
@@ -47,7 +48,12 @@ export function computeVoteNullifier(voterSecret: Uint8Array, proposalId: number
 }
 
 /** Classify wallet / proof failures for UX (toasts). */
-export function classifyVoteFailure(e: unknown): 'user_rejected' | 'already_voted' | 'network' | 'unknown' {
+export function classifyVoteFailure(
+  e: unknown,
+): 'user_rejected' | 'already_voted' | 'insufficient_balance' | 'network' | 'unknown' {
+  if (isInsufficientGovernanceError(e)) {
+    return 'insufficient_balance';
+  }
   const msg = e instanceof Error ? e.message : String(e);
   const lower = msg.toLowerCase();
   if (

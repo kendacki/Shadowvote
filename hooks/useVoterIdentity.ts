@@ -1,9 +1,21 @@
 'use client';
 
+import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  assertMinGovernanceBalance,
+  GOVERNANCE_MIN_TNIGHT,
+  isInsufficientGovernanceError,
+} from '@/utils/tNightGate';
 
 const STORAGE_KEY = 'shadowvote.voterSecret.v1';
 const SECRET_BYTES = 32;
+
+export type VoterIdentityGateOpts = {
+  isWalletConnected: boolean;
+  /** From Lace balance polling; null while unknown. */
+  tNightBalance: bigint | null;
+};
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -30,46 +42,85 @@ function generateSecret(): Uint8Array {
 }
 
 export type VoterIdentityState = {
-  /** 32-byte secret for `voterSecret` witness; `null` before client hydration. */
   voterSecret: Uint8Array | null;
-  /** True after localStorage has been read or a new secret persisted. */
   isReady: boolean;
-  /** Regenerate secret (overwrites storage). */
-  rotateSecret: () => void;
+  /**
+   * No persisted secret yet, wallet connected, and balance is below the governance minimum.
+   */
+  blockedByFundThreshold: boolean;
+  rotateSecret: () => Promise<void>;
 };
 
 /**
- * Persistent local voter identity: one 32-byte secret stored as hex in `localStorage`.
- * Suitable for injection into Compact witness tuples `[context.privateState, voterSecret]`.
+ * Persistent local voter identity. New secrets are created only after a wallet session meets the
+ * governance tNIGHT threshold (same as voting). Existing `localStorage` secrets are always loaded.
  */
-export function useVoterIdentity(): VoterIdentityState {
+export function useVoterIdentity(
+  connectedApi: ConnectedAPI | null,
+  opts: VoterIdentityGateOpts,
+): VoterIdentityState {
   const [voterSecret, setVoterSecret] = useState<Uint8Array | null>(null);
   const [isReady, setIsReady] = useState(false);
+  const [blockedByFundThreshold, setBlockedByFundThreshold] = useState(false);
 
   useEffect(() => {
-    try {
-      const existing = localStorage.getItem(STORAGE_KEY);
-      if (existing) {
-        setVoterSecret(hexToBytes(existing));
-      } else {
+    let cancelled = false;
+
+    const run = async () => {
+      setBlockedByFundThreshold(false);
+      try {
+        const existing = localStorage.getItem(STORAGE_KEY);
+        if (existing) {
+          setVoterSecret(hexToBytes(existing));
+          return;
+        }
+
+        if (!opts.isWalletConnected || !connectedApi) {
+          setVoterSecret(null);
+          return;
+        }
+
+        if (opts.tNightBalance === null) {
+          setVoterSecret(null);
+          return;
+        }
+
+        if (opts.tNightBalance < GOVERNANCE_MIN_TNIGHT) {
+          setVoterSecret(null);
+          setBlockedByFundThreshold(true);
+          return;
+        }
+
+        await assertMinGovernanceBalance(connectedApi);
+        if (cancelled) return;
+
         const fresh = generateSecret();
         localStorage.setItem(STORAGE_KEY, bytesToHex(fresh));
         setVoterSecret(fresh);
+      } catch (e: unknown) {
+        if (cancelled) return;
+        if (isInsufficientGovernanceError(e)) {
+          setVoterSecret(null);
+          setBlockedByFundThreshold(true);
+          return;
+        }
+        setVoterSecret(null);
+      } finally {
+        if (!cancelled) setIsReady(true);
       }
-    } catch {
-      const fresh = generateSecret();
-      try {
-        localStorage.setItem(STORAGE_KEY, bytesToHex(fresh));
-      } catch {
-        /* private mode / quota */
-      }
-      setVoterSecret(fresh);
-    } finally {
-      setIsReady(true);
-    }
-  }, []);
+    };
 
-  const rotateSecret = useCallback(() => {
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [connectedApi, opts.isWalletConnected, opts.tNightBalance]);
+
+  const rotateSecret = useCallback(async () => {
+    if (!connectedApi) {
+      throw new Error('Connect your wallet before rotating voter identity.');
+    }
+    await assertMinGovernanceBalance(connectedApi);
     const fresh = generateSecret();
     try {
       localStorage.setItem(STORAGE_KEY, bytesToHex(fresh));
@@ -77,7 +128,8 @@ export function useVoterIdentity(): VoterIdentityState {
       /* ignore */
     }
     setVoterSecret(fresh);
-  }, []);
+    setBlockedByFundThreshold(false);
+  }, [connectedApi]);
 
-  return { voterSecret, isReady, rotateSecret };
+  return { voterSecret, isReady, blockedByFundThreshold, rotateSecret };
 }

@@ -9,6 +9,7 @@ import { useToast } from '@/contexts/ToastContext';
 import { useMidnightWallet } from '@/hooks/useMidnightWallet';
 import { useShadowVote, type VoteTxStage } from '@/hooks/useShadowVote';
 import { useVoterIdentity } from '@/hooks/useVoterIdentity';
+import { GOVERNANCE_MIN_TNIGHT } from '@/utils/tNightGate';
 import { gradientPrimary, styled } from '@/stitches.config';
 import { AnimatePresence, motion } from 'framer-motion';
 import Link from 'next/link';
@@ -180,6 +181,14 @@ function applyVoteStageToast(
         message: `Your identity already cast a vote on proposal #${proposalId}.`,
       });
       break;
+    case 'failed_insufficient_balance':
+      toast.update(toastId, {
+        variant: 'error',
+        title: 'Insufficient tNIGHT',
+        message:
+          'You need more testnet tNIGHT in your Lace unshielded balance before you can vote on governance.',
+      });
+      break;
     case 'failed_network':
       toast.update(toastId, {
         variant: 'error',
@@ -207,8 +216,11 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
   const router = useRouter();
   const toast = useToast();
   const wallet = useMidnightWallet();
-  const api = wallet?.getConnectedApi?.() ?? null;
-  const identity = useVoterIdentity();
+  const api = wallet.isConnected ? wallet.getConnectedApi() : null;
+  const identity = useVoterIdentity(api, {
+    isWalletConnected: wallet.isConnected,
+    tNightBalance: wallet.tNightBalance,
+  });
   const shadow = useShadowVote(api, identity?.voterSecret ?? null);
 
   const identityReady =
@@ -294,7 +306,12 @@ export default function ProposalDetailClient({ proposalId }: ProposalDetailClien
             <StatValue>{tally}</StatValue>
           </StatHero>
 
-          {identityReady ? (
+          {identity.blockedByFundThreshold ? (
+            <Body css={{ fontSize: '$sm', color: '$red400', fontFamily: '$poppins', margin: 0 }}>
+              You need at least {GOVERNANCE_MIN_TNIGHT.toString()} tNIGHT (unshielded) to generate a voter credential and
+              vote. Add testnet tokens in Lace, wait for the balance to sync, then refresh this page.
+            </Body>
+          ) : identityReady ? (
             <Body css={{ fontSize: '$sm', color: '$gray500', fontFamily: '$poppins', margin: 0 }}>
               Local voter identity is ready.
             </Body>
