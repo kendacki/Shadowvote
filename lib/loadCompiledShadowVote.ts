@@ -5,7 +5,8 @@ import type { WitnessContext } from '@midnight-ntwrk/compact-runtime';
  * Merkle-era `build/contract` requires `voterMembershipPath`; Open DAO only has `voterSecret`.
  * Detect mismatch before ZK/prove with a confusing CompactError.
  */
-function assertOpenDaoContractClass(Contract: new (witnesses: unknown) => unknown): void {
+/** Uses `any` so generated Compact `Contract` constructors (generic Witnesses) are assignable. */
+function assertOpenDaoContractClass(Contract: new (witnesses: any) => any): void {
   const voterSecretStub = (): [Record<string, never>, Uint8Array] => [{}, new Uint8Array(32)];
   try {
     new Contract({ voterSecret: voterSecretStub });
