@@ -21,6 +21,46 @@ function shouldUseMidnightProofProxy(): boolean {
   return v === '1' || v === 'true' || v === 'yes';
 }
 
+/** Browser-only: same-origin proxy so HTTPS pages avoid mixed content + CORS to the proof server. */
+function sameOriginMidnightProofProxyUrl(): string {
+  return `${window.location.origin}/api/midnight-proof`.replace(/\/$/, '');
+}
+
+function isProofProviderShape(o: unknown): o is { proveTx: (...args: unknown[]) => unknown } {
+  return o !== null && typeof o === 'object' && typeof (o as { proveTx?: unknown }).proveTx === 'function';
+}
+
+function isProvingProviderShape(o: unknown): o is { check: unknown; prove: unknown } {
+  return (
+    o !== null &&
+    typeof o === 'object' &&
+    typeof (o as { check?: unknown }).check === 'function' &&
+    typeof (o as { prove?: unknown }).prove === 'function'
+  );
+}
+
+/**
+ * Lace / wallet may return ESM `default`, or a nested wrapper. Try a few shapes before giving up.
+ */
+function pickFirstMatchingProvingProvider(raw: unknown): unknown {
+  const candidates: unknown[] = [];
+  const push = (v: unknown) => {
+    if (v !== null && typeof v === 'object') candidates.push(v);
+  };
+  push(raw);
+  if (raw !== null && typeof raw === 'object') {
+    const o = raw as Record<string, unknown>;
+    push(o.default);
+    for (const key of ['provingProvider', 'provider', 'inner'] as const) {
+      if (key in o) push(o[key]);
+    }
+  }
+  for (const c of candidates) {
+    if (isProofProviderShape(c) || isProvingProviderShape(c)) return c;
+  }
+  return raw;
+}
+
 function zkAssetsBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_SHADOWVOTE_ZK_BASE?.trim();
   if (env?.startsWith('http')) return env.replace(/\/$/, '');
@@ -203,15 +243,24 @@ async function proofProviderFromLace(
   zkConfigProvider: HttpZkConfigProvider<ShadowVoteCircuitId>,
 ): Promise<AnyProofProvider> {
   const raw = await api.getProvingProvider!(zkConfigProvider.asKeyMaterialProvider());
-  const r = raw as { proveTx?: unknown; check?: unknown; prove?: unknown };
-  if (typeof r.proveTx === 'function') {
-    return raw as unknown as AnyProofProvider;
+  const candidate = pickFirstMatchingProvingProvider(raw);
+
+  if (isProofProviderShape(candidate)) {
+    return candidate as unknown as AnyProofProvider;
   }
-  if (typeof r.check === 'function' && typeof r.prove === 'function') {
-    return createProofProvider(raw as never) as unknown as AnyProofProvider;
+  if (isProvingProviderShape(candidate)) {
+    return createProofProvider(candidate as never) as unknown as AnyProofProvider;
   }
+
+  if (shouldUseMidnightProofProxy()) {
+    return httpClientProofProvider(sameOriginMidnightProofProxyUrl(), zkConfigProvider) as unknown as AnyProofProvider;
+  }
+
+  const keys =
+    candidate !== null && typeof candidate === 'object' ? Object.keys(candidate as object).join(', ') : String(candidate);
   throw new Error(
-    'Lace getProvingProvider returned an unexpected shape (need proveTx or check+prove). Try HTTP proving: NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1 and PROOF_SERVER_URL.',
+    `Lace getProvingProvider returned an unexpected shape (need proveTx or check+prove). Got keys: ${keys}. ` +
+      'Try HTTP proving: NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1 and PROOF_SERVER_URL (server-side for the proxy).',
   );
 }
 
@@ -251,8 +300,7 @@ export async function createShadowVoteProviders(
       : (() => {
           /** Same-origin proxy avoids HTTPS→HTTP mixed content and CORS to the proof server. */
           if (shouldUseMidnightProofProxy()) {
-            const proverUrl = `${window.location.origin}/api/midnight-proof`.replace(/\/$/, '');
-            return httpClientProofProvider(proverUrl, zkConfigProvider);
+            return httpClientProofProvider(sameOriginMidnightProofProxyUrl(), zkConfigProvider);
           }
           /** Prefer env so production can override Lace getConfiguration() pointing at localhost. */
           const proverUrl =
