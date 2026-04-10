@@ -175,7 +175,7 @@ Public Midnight docs assume a **local** proof server (`http://127.0.0.1:6300`). 
 **What works:**
 
 1. **Lace in-wallet proving** — If the connector exposes `getProvingProvider`, this app uses it first (no extra env).
-2. **Same-origin proof proxy (built-in)** — Set **`NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1`**. The browser posts to **`/api/midnight-proof/check`** and **`/prove`**; your **Vercel server** forwards to **`PROOF_SERVER_URL`** (or **`MIDNIGHT_PROOF_SERVER_INTERNAL_URL`**). That upstream must be reachable **from Vercel’s servers**, not from the visitor’s PC. Typical setup: run Docker proof-server locally and expose it with **ngrok** / **Cloudflare Tunnel** (`https://…` → `:6300`), then set **`PROOF_SERVER_URL`** on Vercel to that tunnel URL (server-only env is fine). Local `npm run dev` can use **`PROOF_SERVER_URL=http://127.0.0.1:6300`** with the proxy flag.
+2. **Same-origin proof proxy (built-in)** — Set **`NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1`**. The browser only calls **`/api/midnight-proof/check`** and **`/prove`** on your app; **Vercel** forwards to **`PROOF_SERVER_URL`** (tunnel base URL **without** `/check`). Do **not** put the tunnel in **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`**: the Midnight proof server does **not** send CORS headers, so the browser would get **`Failed to fetch`** on **`check`**. Pinggy/ngrok URLs belong in **server-only** `PROOF_SERVER_URL`.
 3. **Direct browser → prover** — Set **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`** to an **HTTPS** origin the browser can call (and that allows your site’s origin if cross-origin).
 
 `PROOF_SERVER_URL` is also used by **`npm run deploy`**; with the proxy enabled it doubles as the server-side proof upstream.

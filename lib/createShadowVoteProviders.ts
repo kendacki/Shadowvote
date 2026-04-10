@@ -56,6 +56,29 @@ function assertProverUrlWorksInBrowser(proverUrl: string): void {
   }
 }
 
+/**
+ * Stock midnight proof-server does not set Access-Control-Allow-Origin. From an HTTPS app, calling a
+ * tunnel (Pinggy/ngrok) or another host directly triggers CORS / preflight failures → "Failed to fetch" on /check.
+ * Use NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY + server-only PROOF_SERVER_URL instead.
+ */
+function assertHttpsAppDoesNotCallRemoteProverDirectly(proverUrl: string): void {
+  if (typeof window === 'undefined') return;
+  if (window.location.protocol !== 'https:') return;
+  let u: URL;
+  try {
+    u = new URL(proverUrl);
+  } catch {
+    return;
+  }
+  if (u.origin === window.location.origin) return;
+  throw new Error(
+    `Prover is at ${u.origin} but this app is at ${window.location.origin} — different origins. ` +
+      `The Midnight proof server does not support browser CORS, so /check and /prove fail with "Failed to fetch". ` +
+      `Fix: set NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1, set PROOF_SERVER_URL (Vercel server env only) to your Pinggy URL ` +
+      `with no path suffix (e.g. https://….run.pinggy-free.link), and remove NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI so the browser only hits /api/midnight-proof.`,
+  );
+}
+
 function requirePrivateStatePassword(): string {
   const p = process.env.NEXT_PUBLIC_MIDNIGHT_PRIVATE_STATE_PASSWORD?.trim();
   if (!p || p.length < 16) {
@@ -215,6 +238,7 @@ export async function createShadowVoteProviders(
             );
           }
           assertProverUrlWorksInBrowser(proverUrl);
+          assertHttpsAppDoesNotCallRemoteProverDirectly(proverUrl);
           return httpClientProofProvider(proverUrl, zkConfigProvider);
         })();
 
