@@ -88,8 +88,10 @@ Copy `.env.example` to `.env` and fill at least (or use `npm run setup` to boots
 | `NEXT_PUBLIC_MIDNIGHT_NETWORK_ID` or `NEXT_PUBLIC_MIDNIGHT_NETWORK` | e.g. `preprod` (banner uses the logical network). |
 | `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` | URL or path to published ZK assets (default `/shadowvote-zk` after `npm run zk:public`). |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Optional: off-chain proposal “waiting room” (`public.proposals`). |
+| `NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY` | Set to `1` when the hosted app should prove via **`/api/midnight-proof`** (needed for Vercel + ngrok/Pinggy). Pair with server-only **`PROOF_SERVER_URL`**. |
+| `PROOF_SERVER_URL` | **Server-only** (do not prefix `NEXT_PUBLIC_`). Base URL your tunnel exposes to **`http://localhost:6300`** (e.g. `https://frostbite-banner-unwound.ngrok-free.dev`). Also used for `npm run deploy`. |
 
-See `.env.example` for indexer URLs, deploy seed, and proof server host.
+See `.env.example` for indexer URLs, deploy seed, and full proof / proxy notes.
 
 ### 3. Compile contract & publish ZK artifacts
 
@@ -161,7 +163,15 @@ npm start
 ## Deploying to Vercel
 
 1. **Import** the Git repository and set the **Root Directory** to this project if it lives in a monorepo.
-2. **Environment variables** — add all `NEXT_PUBLIC_*` values from `.env` in the Vercel project settings (Production + Preview as needed). Never commit secrets.
+2. **Environment variables** — Vercel → your project → **Settings → Environment Variables**. Add the same `NEXT_PUBLIC_*` values you use locally (Production + Preview as needed). Never commit secrets. **For voting with a tunnel to your local proof-server**, include at least:
+
+| Name | Example value | Visibility |
+| --- | --- | --- |
+| `NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY` | `1` | Exposed to browser (normal for `NEXT_PUBLIC_*`). |
+| `PROOF_SERVER_URL` | `https://frostbite-banner-unwound.ngrok-free.dev` | **Server-only** — Vercel sends this to `/api/midnight-proof`, which forwards to your tunnel → `http://localhost:6300`. Replace with your current ngrok host. |
+
+Do **not** set `NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI` to the ngrok URL when using the proxy (CORS).
+
 3. **Build** — `npm run build` (default Install Command `npm install`).
 4. **Output** — Next.js default (no static export required).
 5. **WASM** — `vercel.json` adds `Content-Type: application/wasm` for `*.wasm`. Do **not** add a SPA catch-all rewrite to `index.html` (that pattern breaks App Router).
