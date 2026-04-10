@@ -205,10 +205,10 @@ async function proofProviderFromLace(
   const raw = await api.getProvingProvider!(zkConfigProvider.asKeyMaterialProvider());
   const r = raw as { proveTx?: unknown; check?: unknown; prove?: unknown };
   if (typeof r.proveTx === 'function') {
-    return raw as AnyProofProvider;
+    return raw as unknown as AnyProofProvider;
   }
   if (typeof r.check === 'function' && typeof r.prove === 'function') {
-    return createProofProvider(raw as never) as AnyProofProvider;
+    return createProofProvider(raw as never) as unknown as AnyProofProvider;
   }
   throw new Error(
     'Lace getProvingProvider returned an unexpected shape (need proveTx or check+prove). Try HTTP proving: NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1 and PROOF_SERVER_URL.',
