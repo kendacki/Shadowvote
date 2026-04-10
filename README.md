@@ -59,7 +59,7 @@ The final step is submitting the mathematically disguised vote to the network.
 ShadowVote is currently deployed on the Midnight test network. You can interact with the live contract using the following details:
 
 - **Network:** Midnight Preprod
-- **Contract Address:** `d07a075a45de0e9d3f5ebe7425a917d2ad38a68939d21f7a5efd7228b3fc5e26`
+- **Contract Address:** `b1eb2448c2164288361542720e1b8a822a28c5f05bd1a1456fb24fa293536a65`
 - **Wallet Extension:** Requires [Midnight Lace Wallet] https://chromewebstore.google.com/detail/lace-midnight-preview/hgeekaiplokcnmakghbdfbgnlfheichg to interact via the browser.
 
 *(Note: Because this is deployed on the Preprod network, you will need tNight tokens from the Midnight Faucet to execute transactions).*
