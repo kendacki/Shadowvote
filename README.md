@@ -180,6 +180,19 @@ Public Midnight docs assume a **local** proof server (`http://127.0.0.1:6300`). 
 
 `PROOF_SERVER_URL` is also used by **`npm run deploy`**; with the proxy enabled it doubles as the server-side proof upstream.
 
+**Example — ngrok → local proof-server (port 6300)**
+
+1. Start the Midnight proof server locally (e.g. `npm run start-proof-server` / Docker on **`6300`**).
+2. In another terminal, expose it:
+   ```bash
+   ngrok http 6300
+   ```
+3. One working tunnel maps **`https://frostbite-banner-unwound.ngrok-free.dev`** → **`http://localhost:6300`**. (Free ngrok URLs change when you restart unless you use a [reserved domain](https://ngrok.com/docs/guides/how-to-set-up-a-custom-domain/).)
+4. Set on **Vercel** (or `.env` for local prod-style tests):
+   - **`NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY`** = `1`
+   - **`PROOF_SERVER_URL`** = `https://frostbite-banner-unwound.ngrok-free.dev` (base URL only; no `/check`)
+5. Do **not** set **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`** to ngrok when using the proxy. Keep the ngrok process running while you vote.
+
 ## Project layout
 
 ```
