@@ -1,5 +1,6 @@
 'use client';
 
+import '@/lib/ensureMidnightNetworkId';
 import { findDeployedContract, getPublicStates } from '@midnight-ntwrk/midnight-js-contracts';
 import type { ChargedState, ContractState, StateValue } from '@midnight-ntwrk/compact-runtime';
 import type { ConnectedAPI } from '@midnight-ntwrk/dapp-connector-api';
