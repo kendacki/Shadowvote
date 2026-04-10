@@ -15,6 +15,12 @@ import { HttpZkConfigProvider } from '@/lib/httpZkConfigProvider';
 
 const NETWORK_ID = process.env.NEXT_PUBLIC_MIDNIGHT_NETWORK_ID ?? 'preprod';
 
+/** Browser calls same-origin /api/midnight-proof; server forwards to MIDNIGHT_PROOF_SERVER_INTERNAL_URL or PROOF_SERVER_URL. */
+function shouldUseMidnightProofProxy(): boolean {
+  const v = process.env.NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY?.trim().toLowerCase();
+  return v === '1' || v === 'true' || v === 'yes';
+}
+
 function zkAssetsBaseUrl(): string {
   const env = process.env.NEXT_PUBLIC_SHADOWVOTE_ZK_BASE?.trim();
   if (env?.startsWith('http')) return env.replace(/\/$/, '');
@@ -39,11 +45,13 @@ function assertProverUrlWorksInBrowser(proverUrl: string): void {
     const loopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
     throw new Error(
       loopback
-        ? 'Proof server is HTTP on localhost — it is not reachable from this HTTPS site (and not from other devices). ' +
-            'Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI in Vercel to a public HTTPS Midnight prover, ' +
-            'or test voting from http://localhost:3000 with Docker proof-server on your machine.'
-        : 'Proof server URL uses HTTP but this page is HTTPS; the browser blocks that request (mixed content). ' +
-            'Use an HTTPS prover in NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI.',
+        ? 'Proof server is HTTP on localhost — browsers on HTTPS (e.g. Vercel) cannot reach 127.0.0.1 on your PC, and mixed content blocks http from https pages. ' +
+            'Options: (1) Test voting from http://localhost:3000 with Docker proof-server on your machine. ' +
+            '(2) Use Lace with in-wallet proving (getProvingProvider) so the extension proves — no public prover URL. ' +
+            '(3) Self-host midnightntwrk/proof-server behind HTTPS and set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI to that origin. ' +
+            'There is no documented public Preprod prover URL for arbitrary sites; see README "Deploying to Vercel → Proving".'
+        : 'Proof server URL uses HTTP but this page is HTTPS; the browser blocks that (mixed content). ' +
+            'Use an HTTPS prover in NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI, in-wallet Lace proving, or run the app on http://localhost.',
     );
   }
 }
@@ -191,6 +199,11 @@ export async function createShadowVoteProviders(
     typeof api.getProvingProvider === 'function'
       ? createProofProvider(await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider()))
       : (() => {
+          /** Same-origin proxy avoids HTTPS→HTTP mixed content and CORS to the proof server. */
+          if (shouldUseMidnightProofProxy()) {
+            const proverUrl = `${window.location.origin}/api/midnight-proof`.replace(/\/$/, '');
+            return httpClientProofProvider(proverUrl, zkConfigProvider);
+          }
           /** Prefer env so production can override Lace getConfiguration() pointing at localhost. */
           const proverUrl =
             (process.env.NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI?.trim() ?? '').replace(/\/$/, '') ||
@@ -198,7 +211,7 @@ export async function createShadowVoteProviders(
             '';
           if (!proverUrl) {
             throw new Error(
-              'Wallet does not expose getProvingProvider. Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI to your Midnight proof server URL to submit votes.',
+              'Wallet does not expose getProvingProvider. Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI, or enable NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY (see README).',
             );
           }
           assertProverUrlWorksInBrowser(proverUrl);

@@ -132,7 +132,7 @@ npm run dev
 
 `npm run build` runs a check that `build/contract` matches Open DAO before producing a production bundle.
 
-**Voting / `prove` + `Failed to fetch` on Vercel:** The dApp may use an HTTP client to your proof server. Pages served over **HTTPS** cannot call `http://127.0.0.1:6300` (mixed content, wrong host). Set **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`** to an **HTTPS** Midnight prover reachable from browsers (see `.env.example`), or vote from **local** `http://localhost:3000` with Docker proof-server. If Lace exposes in-wallet proving (`getProvingProvider`), that path is used instead when available.
+**Voting from an HTTPS site (e.g. Vercel)** — If you see *“Proof server is HTTP on localhost…”* or *`prove` … `Failed to fetch`*: browsers **cannot** call `http://127.0.0.1:6300` from `https://your-app.vercel.app` (mixed content + that host is **_your_ machine_, not visitors’). **`PROOF_SERVER_URL`** alone only helps **Node** (`npm run deploy`), not the **browser**. See **Deploying to Vercel → Proving** below.
 
 ### 6. Deploy contract (optional)
 
@@ -167,6 +167,18 @@ npm start
 5. **WASM** — `vercel.json` adds `Content-Type: application/wasm` for `*.wasm`. Do **not** add a SPA catch-all rewrite to `index.html` (that pattern breaks App Router).
 6. **ZK assets** — Run `npm run zk:public` in CI before build, or host artifacts on a CDN and set `NEXT_PUBLIC_SHADOWVOTE_ZK_BASE` to that base URL.
 7. **Mainnet** — Set `NEXT_PUBLIC_MIDNIGHT_NETWORK=mainnet` (or equivalent id) only when you intentionally ship prod; the **Network** banner hides on mainnet.
+
+### Proving (ZK) on Vercel
+
+Public Midnight docs assume a **local** proof server (`http://127.0.0.1:6300`). A hosted **HTTPS** app cannot call **HTTP localhost** from the browser (mixed content + wrong host). **CORS** may also block direct calls to some HTTPS provers.
+
+**What works:**
+
+1. **Lace in-wallet proving** — If the connector exposes `getProvingProvider`, this app uses it first (no extra env).
+2. **Same-origin proof proxy (built-in)** — Set **`NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1`**. The browser posts to **`/api/midnight-proof/check`** and **`/prove`**; your **Vercel server** forwards to **`PROOF_SERVER_URL`** (or **`MIDNIGHT_PROOF_SERVER_INTERNAL_URL`**). That upstream must be reachable **from Vercel’s servers**, not from the visitor’s PC. Typical setup: run Docker proof-server locally and expose it with **ngrok** / **Cloudflare Tunnel** (`https://…` → `:6300`), then set **`PROOF_SERVER_URL`** on Vercel to that tunnel URL (server-only env is fine). Local `npm run dev` can use **`PROOF_SERVER_URL=http://127.0.0.1:6300`** with the proxy flag.
+3. **Direct browser → prover** — Set **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`** to an **HTTPS** origin the browser can call (and that allows your site’s origin if cross-origin).
+
+`PROOF_SERVER_URL` is also used by **`npm run deploy`**; with the proxy enabled it doubles as the server-side proof upstream.
 
 ## Project layout
 
