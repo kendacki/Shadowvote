@@ -23,6 +23,31 @@ function zkAssetsBaseUrl(): string {
   return `${window.location.origin}${path.startsWith('/') ? path : `/${path}`}`.replace(/\/$/, '');
 }
 
+/**
+ * HTTPS pages cannot fetch http:// provers (mixed content). Localhost from Vercel is never reachable.
+ */
+function assertProverUrlWorksInBrowser(proverUrl: string): void {
+  if (typeof window === 'undefined') return;
+  let u: URL;
+  try {
+    u = new URL(proverUrl);
+  } catch {
+    throw new Error(`Invalid prover URL: ${proverUrl}`);
+  }
+  const pageHttps = window.location.protocol === 'https:';
+  if (pageHttps && u.protocol === 'http:') {
+    const loopback = u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    throw new Error(
+      loopback
+        ? 'Proof server is HTTP on localhost — it is not reachable from this HTTPS site (and not from other devices). ' +
+            'Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI in Vercel to a public HTTPS Midnight prover, ' +
+            'or test voting from http://localhost:3000 with Docker proof-server on your machine.'
+        : 'Proof server URL uses HTTP but this page is HTTPS; the browser blocks that request (mixed content). ' +
+            'Use an HTTPS prover in NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI.',
+    );
+  }
+}
+
 function requirePrivateStatePassword(): string {
   const p = process.env.NEXT_PUBLIC_MIDNIGHT_PRIVATE_STATE_PASSWORD?.trim();
   if (!p || p.length < 16) {
@@ -166,15 +191,17 @@ export async function createShadowVoteProviders(
     typeof api.getProvingProvider === 'function'
       ? createProofProvider(await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider()))
       : (() => {
+          /** Prefer env so production can override Lace getConfiguration() pointing at localhost. */
           const proverUrl =
+            (process.env.NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI?.trim() ?? '').replace(/\/$/, '') ||
             cfg.proverServerUri?.replace(/\/$/, '') ||
-            process.env.NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI?.trim() ||
             '';
           if (!proverUrl) {
             throw new Error(
               'Wallet does not expose getProvingProvider. Set NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI to your Midnight proof server URL to submit votes.',
             );
           }
+          assertProverUrlWorksInBrowser(proverUrl);
           return httpClientProofProvider(proverUrl, zkConfigProvider);
         })();
 

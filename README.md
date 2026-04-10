@@ -132,6 +132,8 @@ npm run dev
 
 `npm run build` runs a check that `build/contract` matches Open DAO before producing a production bundle.
 
+**Voting / `prove` + `Failed to fetch` on Vercel:** The dApp may use an HTTP client to your proof server. Pages served over **HTTPS** cannot call `http://127.0.0.1:6300` (mixed content, wrong host). Set **`NEXT_PUBLIC_MIDNIGHT_PROVER_SERVER_URI`** to an **HTTPS** Midnight prover reachable from browsers (see `.env.example`), or vote from **local** `http://localhost:3000` with Docker proof-server. If Lace exposes in-wallet proving (`getProvingProvider`), that path is used instead when available.
+
 ### 6. Deploy contract (optional)
 
 With wallet seed and proof server up:
