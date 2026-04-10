@@ -188,6 +188,33 @@ function createLaceWalletAndMidnight(
 
 export type ShadowVoteCircuitId = 'vote';
 
+type AnyProofProvider = ContractProviders<
+  import('@midnight-ntwrk/compact-js/effect/Contract').Contract.Any,
+  ShadowVoteCircuitId
+>['proofProvider'];
+
+/**
+ * Lace may return either a low-level {@link ProvingProvider} (`check` + `prove`) or an
+ * already-wrapped transaction {@link ProofProvider} (`proveTx` only). Wrapping the latter with
+ * `createProofProvider` breaks proving ("expected proof provider property 'check' to be a function").
+ */
+async function proofProviderFromLace(
+  api: ConnectedAPI,
+  zkConfigProvider: HttpZkConfigProvider<ShadowVoteCircuitId>,
+): Promise<AnyProofProvider> {
+  const raw = await api.getProvingProvider!(zkConfigProvider.asKeyMaterialProvider());
+  const r = raw as { proveTx?: unknown; check?: unknown; prove?: unknown };
+  if (typeof r.proveTx === 'function') {
+    return raw as AnyProofProvider;
+  }
+  if (typeof r.check === 'function' && typeof r.prove === 'function') {
+    return createProofProvider(raw as never) as AnyProofProvider;
+  }
+  throw new Error(
+    'Lace getProvingProvider returned an unexpected shape (need proveTx or check+prove). Try HTTP proving: NEXT_PUBLIC_MIDNIGHT_USE_PROOF_PROXY=1 and PROOF_SERVER_URL.',
+  );
+}
+
 /**
  * Builds full {@link ContractProviders} for ShadowVote using wallet services from Lace.
  */
@@ -220,7 +247,7 @@ export async function createShadowVoteProviders(
 
   const proofProvider =
     typeof api.getProvingProvider === 'function'
-      ? createProofProvider(await api.getProvingProvider(zkConfigProvider.asKeyMaterialProvider()))
+      ? await proofProviderFromLace(api, zkConfigProvider)
       : (() => {
           /** Same-origin proxy avoids HTTPS→HTTP mixed content and CORS to the proof server. */
           if (shouldUseMidnightProofProxy()) {
